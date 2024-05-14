@@ -238,10 +238,8 @@ edfuse_readdir(const char *path, void *buf, fuse_fill_dir_t filler,
   edfs_image_t *img = get_edfs_image();
   edfs_inode_t inode = { 0, };
 
-  printf("gevonden?");
   if (!edfs_find_inode(img, path, &inode))
     return -ENOENT;
-  printf("gevonden.");
 
   if (!edfs_disk_inode_is_directory(&inode.inode))
     return -ENOTDIR;
