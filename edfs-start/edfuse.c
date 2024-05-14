@@ -221,8 +221,11 @@ static int edfuse_readdir(const char *path, void *buf, fuse_fill_dir_t filler,
         offset = edfs_get_block_offset(&img->sb, inode.inode.blocks[i]);
         pread(img->fd, dir, img->sb.block_size, offset);
         for (int j = 0; j < DIR_SIZE; j++) {
-            // If valid dir entry then print filename in dir entry
-            if (dir[j].inumber != 0) filler(buf, dir[j].filename, NULL, 0);
+            if (dir[j].inumber != 0) {
+              char* filename = dir[j].filename
+              printf("filename: %s\n", filename);
+              filler(buf, filename, NULL, 0);
+            }
         }
     }
 
