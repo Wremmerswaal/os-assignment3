@@ -65,23 +65,24 @@ static bool edfs_find_inode(edfs_image_t *img, const char *path,
         };
         strncpy(direntry.filename, path, len);
         direntry.filename[len] = 0;
-
         if (direntry.filename[0] != 0) {
-            // Stel: zoek /a/b/c
-            // "a"
-            // current_inode is de inode van /
-            edfs_block_t blocks = current_inode.inode.blocks;
-
-            /* TODO: visit the directory entries of parent_inode and look
-             * for a directory entry with the same filename as
-             * direntry.filename. If found, fill in direntry.inumber with
-             * the corresponding inode number.
-             *
-             * Write a generic function which visits directory entries,
-             * you are going to need this more often. Consider implementing
-             * a callback mechanism.
-             */
+            // TODOR: Hier 1 functie van maken en gebruiken bij zowel find_inode als readdir
+            const int DIR_SIZE = edfs_get_n_dir_entries_per_block(&img->sb);
             bool found = false;
+            for (int i = 0; i < EDFS_INODE_N_BLOCKS; i++) {
+                if (current_inode.inode.blocks[i] == 0) continue;
+                off_t offset = edfs_get_block_offset(&img->sb, current_inode.inode.blocks[i]);
+                edfs_dir_entry_t dir[DIR_SIZE];
+                pread(img->fd, dir, img->sb.block_size, offset);
+
+                for (int j = 0; j < DIR_SIZE; j++) {
+                    if (!strcmp(dir[j].filename, direntry.filename) && dir[j].inumber != 0) {
+                        direntry.inumber = dir[j].inumber;
+                        found = true;
+                    }
+                }
+            }
+
 
             if (found) {
                 /* Found what we were looking for, now get our new inode. */
@@ -98,6 +99,15 @@ static bool edfs_find_inode(edfs_image_t *img, const char *path,
 
     return true;
 }
+            /* TODO: visit the directory entries of parent_inode and look
+             * for a directory entry with the same filename as
+             * direntry.filename. If found, fill in direntry.inumber with
+             * the corresponding inode number.
+             *
+             * Write a generic function which visits directory entries,
+             * you are going to need this more often. Consider implementing
+             * a callback mechanism.
+             */
 
 static inline void drop_trailing_slashes(char *path_copy) {
     int len = strlen(path_copy);
@@ -198,7 +208,6 @@ static int edfuse_readdir(const char *path, void *buf, fuse_fill_dir_t filler,
     edfs_inode_t inode = {
         0,
     };
-
     if (!edfs_find_inode(img, path, &inode)) return -ENOENT;
 
     if (!edfs_disk_inode_is_directory(&inode.inode)) return -ENOTDIR;
