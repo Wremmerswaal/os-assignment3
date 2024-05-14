@@ -71,7 +71,6 @@ static bool edfs_find_inode(edfs_image_t *img, const char *path,
             // "a"
             // current_inode is de inode van /
             edfs_block_t blocks = current_inode.inode.blocks;
-            printf("blocks: ", blocks, "\n");
 
             /* TODO: visit the directory entries of parent_inode and look
              * for a directory entry with the same filename as
