@@ -222,7 +222,7 @@ static int edfuse_readdir(const char *path, void *buf, fuse_fill_dir_t filler,
         pread(img->fd, dir, img->sb.block_size, offset);
         for (int j = 0; j < DIR_SIZE; j++) {
             if (dir[j].inumber != 0) {
-              char* filename = dir[j].filename
+              char* filename = dir[j].filename;
               printf("filename: %s\n", filename);
               filler(buf, filename, NULL, 0);
             }
