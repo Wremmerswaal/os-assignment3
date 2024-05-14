@@ -1,5 +1,5 @@
 CC = cc
-CFLAGS = -Wall -std=c99 -D_POSIX_C_SOURCE=200809L -g
+CFLAGS = -Wall -std=c99 -D_POSIX_C_SOURCE=200809L -D_FILE_OFFSET_BITS=64  -g
 FUSE_CFLAGS = `pkg-config fuse --cflags`
 FUSE_LDFLAGS = `pkg-config fuse --libs`
 
