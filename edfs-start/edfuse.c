@@ -83,6 +83,15 @@ edfs_find_inode(edfs_image_t *img,
 
       if (direntry.filename[0] != 0)
         {
+          // Stel: zoek /a/b/c
+          // "a"
+          // current_inode is de inode van /
+          edfs_block_t blocks = current_inode.inode.blocks;
+          std::cout << "blocks: " << blocks << std::endl;
+          
+
+          
+
           /* TODO: visit the directory entries of parent_inode and look
            * for a directory entry with the same filename as
            * direntry.filename. If found, fill in direntry.inumber with
@@ -93,6 +102,7 @@ edfs_find_inode(edfs_image_t *img,
            * a callback mechanism.
            */
           bool found = false;
+
 
           if (found)
             {
