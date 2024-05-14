@@ -212,17 +212,17 @@ static int edfuse_readdir(const char *path, void *buf, fuse_fill_dir_t filler,
      */
 
     const int DIR_SIZE = edfs_get_n_dir_entries_per_block(&img->sb);
-    edfs_dir_entry_t dir[DIR_SIZE];
 
     for (int i = 0; i < EDFS_INODE_N_BLOCKS; i++) {
         if (inode.inode.blocks[i] == 0) continue;
-
         offset = edfs_get_block_offset(&img->sb, inode.inode.blocks[i]);
+
+        edfs_dir_entry_t dir[DIR_SIZE];
         pread(img->fd, dir, img->sb.block_size, offset);
+
         for (int j = 0; j < DIR_SIZE; j++) {
             if (dir[j].inumber != 0) {
               char* filename = dir[j].filename;
-              printf("filename: %s\n", filename);
               filler(buf, filename, NULL, 0);
             }
         }
@@ -316,6 +316,9 @@ static int edfuse_create(const char *path, mode_t mode,
      * Create a new inode, attempt to register in parent directory,
      * write inode to disk.
      */
+  
+  // filenames are restricted to 59 bytes (excluding null-terminator) and may only contain: A-Z,
+  // a-z, 0-9, spaces (“ ”) and dots (“.”).
     return -ENOSYS;
 }
 
