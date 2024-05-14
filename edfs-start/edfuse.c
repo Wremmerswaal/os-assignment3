@@ -235,6 +235,7 @@ static int
 edfuse_readdir(const char *path, void *buf, fuse_fill_dir_t filler,
                off_t offset, struct fuse_file_info *fi)
 {
+  printf("hallo?\n");
   edfs_image_t *img = get_edfs_image();
   edfs_inode_t inode = { 0, };
 
@@ -439,6 +440,7 @@ static struct fuse_operations edfs_oper =
 int
 main(int argc, char *argv[])
 {
+  printf("hallo!\n");
   /* Count number of arguments without hyphens; excluding execname */
   int count = 0;
   for (int i = 1; i < argc; ++i)
@@ -465,6 +467,7 @@ main(int argc, char *argv[])
   if (!img)
     return -1;
 
+  printf("hallo!!\n");
   /* Start fuse main loop */
   int ret = fuse_main(argc, argv, &edfs_oper, img);
   edfs_image_close(img);
