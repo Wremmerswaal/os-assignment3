@@ -87,7 +87,7 @@ edfs_find_inode(edfs_image_t *img,
           // "a"
           // current_inode is de inode van /
           edfs_block_t blocks = current_inode.inode.blocks;
-          std::cout << "blocks: " << blocks << std::endl;
+          printf("blocks: ", blocks, "\n");
           
 
           
