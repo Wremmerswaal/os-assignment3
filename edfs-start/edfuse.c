@@ -345,6 +345,40 @@ static int edfuse_unlink(const char *path) {
 
 static int edfuse_read(const char *path, char *buf, size_t size, off_t offset,
                        struct fuse_file_info *fi) {
+    printf("path: %s\n", path);
+    edfs_image_t *img = get_edfs_image();
+    edfs_inode_t inode = {
+        0,
+    };
+    if (!edfs_find_inode(img, path, &inode)) return -ENOENT;
+
+    if (edfs_disk_inode_is_directory(&inode.inode)) return -EISDIR;
+
+    for (int i = 0; i < EDFS_INODE_N_BLOCKS; i++) {
+        if (inode.inode.blocks[i] == 0) continue;
+        off_t block_offset = edfs_get_block_offset(&img->sb, inode.inode.blocks[i]);
+
+        // In het geval van files zijn blocks indirect blocks (check edfs_disk_inode_has_indirect)
+        int NR_BLOCKS = edfs_get_n_blocks_per_indirect_block(&img->sb);
+        edfs_block_t indirect_blocks[NR_BLOCKS];
+        pread(img->fd, indirect_blocks, img->sb.block_size, block_offset);
+
+        // Indirect block bevat een array aan edfs_block_t, dus NR_BLOCKS aantal pointers naar blocks
+        for (size_t j = 0; j < NR_BLOCKS; j++){
+            // Lees de j-de text block uit (dit doet nog niets, pakken we de verkeerde en is ie dus leeg??)
+            block_offset = edfs_get_block_offset(&img->sb, indirect_blocks[j]);
+            printf("%d\n", j);
+            char text[img->sb.block_size];
+            pread(img->fd, text, img->sb.block_size, block_offset);
+            printf(text);
+        }
+        pread(img->fd, buf, img->sb.block_size, block_offset);
+        // Uiteindelijk ook rekening houden dat we "size" hoeveelheid uit moeten lezen, dus evt blocks overlap
+        
+ 
+    }
+
+
     /* TODO: implement
      *
      * See also Section 4.2 of the Appendices document.
