@@ -455,7 +455,7 @@ static int edfuse_read(const char *path, char *buf, size_t size, off_t offset,
      * Read @size bytes of data from @path starting at @offset and write
      * this to @buf.
      */
-    return -ENOSYS;
+    return 0;
 }
 
 static int edfuse_write(const char *path, const char *buf, size_t size,
