@@ -399,7 +399,17 @@ static int edfuse_read(const char *path, char *buf, size_t size, off_t offset,
             off_t offset =
                 edfs_get_block_offset(&img->sb, inode.inode.blocks[i]);
             char text[img->sb.block_size];
-            pread(img->fd, buf + bytes_read, img->sb.block_size, offset);
+            uint64_t bytes_to_read = img->sb.block_size;
+            if(offset + bytes_to_read > inode.inode.size) {
+                bytes_to_read = inode.inode.size - offset;
+            }
+            if(bytes_read + bytes_to_read > size) {
+                bytes_to_read = size - bytes_read;
+            }
+            if(bytes_to_read <= 0) {
+                break;
+            }
+            pread(img->fd, buf + bytes_read, bytes_to_read, offset);
             bytes_read += img->sb.block_size;
         }
     } else {
@@ -423,7 +433,19 @@ static int edfuse_read(const char *path, char *buf, size_t size, off_t offset,
                 // Lees de j-de text block uit
                 block_offset =
                     edfs_get_block_offset(&img->sb, indirect_blocks[j]);
-                pread(img->fd, buf + bytes_read, img->sb.block_size, block_offset);
+                
+                uint16_t bytes_to_read = img->sb.block_size;
+                if(offset + bytes_to_read > inode.inode.size) {
+                    bytes_to_read = inode.inode.size - offset;
+                }
+                if(bytes_read + bytes_to_read > size) {
+                    bytes_to_read = size - bytes_read;
+                }
+                if(bytes_to_read <= 0) {
+                    break;
+                }
+
+                pread(img->fd, buf + bytes_read, bytes_to_read, block_offset);
                 bytes_read += img->sb.block_size;
             }
         }
