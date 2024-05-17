@@ -252,6 +252,43 @@ static int edfuse_mkdir(const char *path, mode_t mode) {
 }
 
 static int edfuse_rmdir(const char *path) {
+    printf("path: %s\n", path);
+    // char* filename = strrchr(path, '/');
+    // filename = filename + strlen(filename) - 1;
+
+    edfs_image_t *img = get_edfs_image();
+    edfs_inode_t inode = {
+        0,
+    };
+    if (!edfs_find_inode(img, path, &inode)) return -ENOENT;
+
+    if (!edfs_disk_inode_is_directory(&inode.inode)) return -ENOTDIR;
+
+    for (int i = 0; i < EDFS_INODE_N_BLOCKS; i++) {
+        if (!inode.inode.blocks[i] == 0) return ENOTEMPTY;
+    }
+    edfs_inode_t parent_inode;
+    edfs_get_parent_inode(img, path, &parent_inode);
+
+
+
+    const int DIR_SIZE = edfs_get_n_dir_entries_per_block(&img->sb);
+
+    for (int i = 0; i < EDFS_INODE_N_BLOCKS; i++) {
+        if (parent_inode.inode.blocks[i] == 0) continue;
+        off_t offset = edfs_get_block_offset(&img->sb, parent_inode.inode.blocks[i]);
+        edfs_dir_entry_t dir[DIR_SIZE];
+        pread(img->fd, dir, img->sb.block_size, offset);
+
+        for (int j = 0; j < DIR_SIZE; j++) {
+            if (!strcmp(dir[j].inumber, inode.inumber) && dir[j].inumber != 0) {
+                // remove dir[j] 
+            }
+        }
+    }
+    edfs_clear_inode(&img, &inode);
+
+
     /* TODO: implement
      *
      * See also Section 4.3 of the Appendices document.
