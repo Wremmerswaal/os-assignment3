@@ -306,7 +306,7 @@ static int edfuse_rmdir(const char *path) {
      * Validate @path exists and is a directory; remove directory entry
      * from parent directory; release allocated blocks; release inode.
      */
-    return -ENOENT;
+    return 0;
 }
 
 /* Get attributes of @path, fill @stbuf. At least mode, nlink and
