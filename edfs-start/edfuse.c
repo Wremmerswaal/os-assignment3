@@ -65,23 +65,24 @@ static bool edfs_find_inode(edfs_image_t *img, const char *path,
         };
         strncpy(direntry.filename, path, len);
         direntry.filename[len] = 0;
-
         if (direntry.filename[0] != 0) {
-            // Stel: zoek /a/b/c
-            // "a"
-            // current_inode is de inode van /
-            edfs_block_t blocks = current_inode.inode.blocks;
-
-            /* TODO: visit the directory entries of parent_inode and look
-             * for a directory entry with the same filename as
-             * direntry.filename. If found, fill in direntry.inumber with
-             * the corresponding inode number.
-             *
-             * Write a generic function which visits directory entries,
-             * you are going to need this more often. Consider implementing
-             * a callback mechanism.
-             */
+            // TODOR: Hier 1 functie van maken en gebruiken bij zowel find_inode als readdir
+            const int DIR_SIZE = edfs_get_n_dir_entries_per_block(&img->sb);
             bool found = false;
+            for (int i = 0; i < EDFS_INODE_N_BLOCKS; i++) {
+                if (current_inode.inode.blocks[i] == 0) continue;
+                off_t offset = edfs_get_block_offset(&img->sb, current_inode.inode.blocks[i]);
+                edfs_dir_entry_t dir[DIR_SIZE];
+                pread(img->fd, dir, img->sb.block_size, offset);
+
+                for (int j = 0; j < DIR_SIZE; j++) {
+                    if (!strcmp(dir[j].filename, direntry.filename) && dir[j].inumber != 0) {
+                        direntry.inumber = dir[j].inumber;
+                        found = true;
+                    }
+                }
+            }
+
 
             if (found) {
                 /* Found what we were looking for, now get our new inode. */
@@ -98,6 +99,15 @@ static bool edfs_find_inode(edfs_image_t *img, const char *path,
 
     return true;
 }
+            /* TODO: visit the directory entries of parent_inode and look
+             * for a directory entry with the same filename as
+             * direntry.filename. If found, fill in direntry.inumber with
+             * the corresponding inode number.
+             *
+             * Write a generic function which visits directory entries,
+             * you are going to need this more often. Consider implementing
+             * a callback mechanism.
+             */
 
 static inline void drop_trailing_slashes(char *path_copy) {
     int len = strlen(path_copy);
@@ -198,7 +208,6 @@ static int edfuse_readdir(const char *path, void *buf, fuse_fill_dir_t filler,
     edfs_inode_t inode = {
         0,
     };
-
     if (!edfs_find_inode(img, path, &inode)) return -ENOENT;
 
     if (!edfs_disk_inode_is_directory(&inode.inode)) return -ENOTDIR;
@@ -243,6 +252,43 @@ static int edfuse_mkdir(const char *path, mode_t mode) {
 }
 
 static int edfuse_rmdir(const char *path) {
+    printf("path: %s\n", path);
+    // char* filename = strrchr(path, '/');
+    // filename = filename + strlen(filename) - 1;
+
+    edfs_image_t *img = get_edfs_image();
+    edfs_inode_t inode = {
+        0,
+    };
+    if (!edfs_find_inode(img, path, &inode)) return -ENOENT;
+
+    if (!edfs_disk_inode_is_directory(&inode.inode)) return -ENOTDIR;
+
+    for (int i = 0; i < EDFS_INODE_N_BLOCKS; i++) {
+        if (!inode.inode.blocks[i] == 0) return ENOTEMPTY;
+    }
+    edfs_inode_t parent_inode;
+    edfs_get_parent_inode(img, path, &parent_inode);
+
+
+
+    const int DIR_SIZE = edfs_get_n_dir_entries_per_block(&img->sb);
+
+    for (int i = 0; i < EDFS_INODE_N_BLOCKS; i++) {
+        if (parent_inode.inode.blocks[i] == 0) continue;
+        off_t offset = edfs_get_block_offset(&img->sb, parent_inode.inode.blocks[i]);
+        edfs_dir_entry_t dir[DIR_SIZE];
+        pread(img->fd, dir, img->sb.block_size, offset);
+
+        for (int j = 0; j < DIR_SIZE; j++) {
+            if (!strcmp(dir[j].inumber, inode.inumber) && dir[j].inumber != 0) {
+                // remove dir[j] 
+            }
+        }
+    }
+    edfs_clear_inode(&img, &inode);
+
+
     /* TODO: implement
      *
      * See also Section 4.3 of the Appendices document.
@@ -336,6 +382,62 @@ static int edfuse_unlink(const char *path) {
 
 static int edfuse_read(const char *path, char *buf, size_t size, off_t offset,
                        struct fuse_file_info *fi) {
+    printf("path: %s\n", path);
+    edfs_image_t *img = get_edfs_image();
+    edfs_inode_t inode = {
+        0,
+    };
+    if (!edfs_find_inode(img, path, &inode)) return -ENOENT;
+
+    if (edfs_disk_inode_is_directory(&inode.inode)) return -EISDIR;
+
+    if (!edfs_disk_inode_has_indirect(&inode.inode)){
+
+        for (int i = 0; i < EDFS_INODE_N_BLOCKS; i++) {
+            if (inode.inode.blocks[i] == 0) continue;
+            printf("inode block %d\n", i);
+            off_t offset = edfs_get_block_offset(&img->sb, inode.inode.blocks[i]);
+            char text[img->sb.block_size];
+            pread(img->fd, text, img->sb.block_size, offset);
+            pread(img->fd, buf, img->sb.block_size, offset);
+            printf(text);
+        }
+    }
+    else{
+        char* text;
+        for (int i = 0; i < EDFS_INODE_N_BLOCKS; i++) {
+            printf("block %d\n",i);
+            if (inode.inode.blocks[i] == 0) continue;
+            printf("%d: continued\n",i);
+            off_t block_offset = edfs_get_block_offset(&img->sb, inode.inode.blocks[i]);
+
+            // In het geval van grote files zijn blocks indirect blocks (check edfs_disk_inode_has_indirect)
+            int NR_BLOCKS = edfs_get_n_blocks_per_indirect_block(&img->sb);
+            edfs_block_t indirect_blocks[NR_BLOCKS];
+            pread(img->fd, indirect_blocks, img->sb.block_size, block_offset);
+            // Indirect block bevat een array aan edfs_block_t, dus NR_BLOCKS aantal pointers naar blocks
+            for (size_t j = 0; j < NR_BLOCKS; j++){
+                if (indirect_blocks[j] == 0){
+                     printf("%d: zero\n", j);
+                     continue;
+                    }
+                // Lees de j-de text block uit (dit doet nog niets, pakken we de verkeerde en is ie dus leeg??)
+                block_offset = edfs_get_block_offset(&img->sb, indirect_blocks[j]);
+                char text_to_add[img->sb.block_size];
+                pread(img->fd, text_to_add, img->sb.block_size, block_offset);
+                printf("%d: %s\n", j, text_to_add);
+                pread(img->fd, buf, img->sb.block_size, block_offset);
+            }
+        }
+        printf(text);
+        // Hij leest de goede dingen uit, maar output het nog niet goed naar buf,
+        // Code kan netter, en:
+        // Uiteindelijk ook rekening houden dat we "size" hoeveelheid uit moeten lezen, dus evt blocks overlap
+        
+ 
+    }
+
+
     /* TODO: implement
      *
      * See also Section 4.2 of the Appendices document.
@@ -343,7 +445,7 @@ static int edfuse_read(const char *path, char *buf, size_t size, off_t offset,
      * Read @size bytes of data from @path starting at @offset and write
      * this to @buf.
      */
-    return -ENOSYS;
+    return 0;
 }
 
 static int edfuse_write(const char *path, const char *buf, size_t size,
