@@ -265,29 +265,39 @@ static int edfuse_rmdir(const char *path) {
     if (!edfs_disk_inode_is_directory(&inode.inode)) return -ENOTDIR;
 
     for (int i = 0; i < EDFS_INODE_N_BLOCKS; i++) {
-        if (!inode.inode.blocks[i] == 0) return ENOTEMPTY;
+        if (!inode.inode.blocks[i] == 0) return -ENOTEMPTY;
     }
     edfs_inode_t parent_inode;
     edfs_get_parent_inode(img, path, &parent_inode);
 
 
-
+    bool found;
+    off_t offset;
     const int DIR_SIZE = edfs_get_n_dir_entries_per_block(&img->sb);
+    edfs_dir_entry_t dir[DIR_SIZE];
+
 
     for (int i = 0; i < EDFS_INODE_N_BLOCKS; i++) {
         if (parent_inode.inode.blocks[i] == 0) continue;
-        off_t offset = edfs_get_block_offset(&img->sb, parent_inode.inode.blocks[i]);
-        edfs_dir_entry_t dir[DIR_SIZE];
+        offset = edfs_get_block_offset(&img->sb, parent_inode.inode.blocks[i]);
         pread(img->fd, dir, img->sb.block_size, offset);
 
         for (int j = 0; j < DIR_SIZE; j++) {
-            if (!strcmp(dir[j].inumber, inode.inumber) && dir[j].inumber != 0) {
-                // remove dir[j] 
+            if (dir[j].inumber == inode.inumber && dir[j].inumber != 0) {
+                edfs_dir_entry_t found_dir_entry;
+                offset = edfs_get_inode_offset(&img->sb, inode.inode.blocks[i] + sizeof(edfs_dir_entry_t) * j);
+                memset(&found_dir_entry, 0, sizeof(edfs_dir_entry_t));
+                pwrite(img->fd, &found_dir_entry, sizeof(edfs_dir_entry_t), offset);
+                found = true;
             }
         }
     }
-    edfs_clear_inode(&img, &inode);
-
+    if (found){
+        edfs_clear_inode(img, &inode);
+        inode.inumber = 0;
+        inode.inode.type = EDFS_INODE_TYPE_FREE;
+        for (int i = 0; i < EDFS_INODE_N_BLOCKS; i++) inode.inode.blocks[i] = 0;
+    }
 
     /* TODO: implement
      *
@@ -296,7 +306,7 @@ static int edfuse_rmdir(const char *path) {
      * Validate @path exists and is a directory; remove directory entry
      * from parent directory; release allocated blocks; release inode.
      */
-    return -ENOSYS;
+    return -ENOENT;
 }
 
 /* Get attributes of @path, fill @stbuf. At least mode, nlink and
