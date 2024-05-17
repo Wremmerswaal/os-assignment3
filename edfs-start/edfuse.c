@@ -444,6 +444,10 @@ static int edfuse_read(const char *path, char *buf, size_t size, off_t offset,
                 if(bytes_to_read <= 0) {
                     break;
                 }
+                printf("block_offset: %d\n", block_offset);
+                printf("bytes_to_read: %d\n", bytes_to_read);
+                printf("bytes_read: %d\n", bytes_read);
+                printf("\n\n");
 
                 pread(img->fd, buf + bytes_read, bytes_to_read, block_offset);
                 bytes_read += img->sb.block_size;
