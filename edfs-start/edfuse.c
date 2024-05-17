@@ -419,7 +419,7 @@ static int edfuse_read(const char *path, char *buf, size_t size, off_t offset,
             for (size_t j = 0; j < NR_BLOCKS; j++){
                 if (indirect_blocks[j] == 0){
                      printf("%d: zero\n", j);
-                     continue;
+                     continue;a
                     }
                 // Lees de j-de text block uit (dit doet nog niets, pakken we de verkeerde en is ie dus leeg??)
                 block_offset = edfs_get_block_offset(&img->sb, indirect_blocks[j]);
