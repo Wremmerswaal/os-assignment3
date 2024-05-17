@@ -435,7 +435,7 @@ static int edfuse_read(const char *path, char *buf, size_t size, off_t offset,
                     edfs_get_block_offset(&img->sb, indirect_blocks[j]);
                 
                 uint16_t bytes_to_read = img->sb.block_size;
-                if(offset + bytes_to_read > inode.inode.size) {
+                if(block_offset + bytes_to_read > inode.inode.size) {
                     bytes_to_read = inode.inode.size - offset;
                 }
                 if(bytes_read + bytes_to_read > size) {
