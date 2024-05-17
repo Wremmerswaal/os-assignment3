@@ -402,8 +402,9 @@ static int edfuse_read(const char *path, char *buf, size_t size, off_t offset,
                 edfs_get_block_offset(&img->sb, inode.inode.blocks[i]);
             char text[img->sb.block_size];
             pread(img->fd, text, img->sb.block_size, offset);
-            pread(img->fd, buf, img->sb.block_size, offset);
+            pread(img->fd, buf + bytes_read, img->sb.block_size, offset);
             printf(text);
+            bytes_read += img->sb.block_size;
         }
     } else {
         for (int i = 0; i < EDFS_INODE_N_BLOCKS; i++) {
@@ -449,7 +450,7 @@ static int edfuse_read(const char *path, char *buf, size_t size, off_t offset,
      * Read @size bytes of data from @path starting at @offset and write
      * this to @buf.
      */
-    return 0;
+    return bytes_read;
 }
 
 static int edfuse_write(const char *path, const char *buf, size_t size,
