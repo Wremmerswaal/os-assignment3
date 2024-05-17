@@ -237,7 +237,7 @@ static int edfuse_readdir(const char *path, void *buf, fuse_fill_dir_t filler,
         }
     }
 
-    return 0;
+    return -ENOENT;
 }
 
 static int edfuse_mkdir(const char *path, mode_t mode) {
