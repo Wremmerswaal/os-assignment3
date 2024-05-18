@@ -237,7 +237,7 @@ static int edfuse_readdir(const char *path, void *buf, fuse_fill_dir_t filler,
         }
     }
 
-    return -ENOENT;
+    return 0;
 }
 
 static int edfuse_mkdir(const char *path, mode_t mode) {
@@ -392,71 +392,74 @@ static int edfuse_unlink(const char *path) {
 
 static int edfuse_read(const char *path, char *buf, size_t size, off_t offset,
                        struct fuse_file_info *fi) {
-    printf("path: %s\n", path);
     edfs_image_t *img = get_edfs_image();
-    edfs_inode_t inode = {
-        0,
-    };
-    if (!edfs_find_inode(img, path, &inode)) return -ENOENT;
+    edfs_inode_t inode = {0};
 
+    int bytes_read = 0;
+
+    if (!edfs_find_inode(img, path, &inode)) return -ENOENT;
     if (edfs_disk_inode_is_directory(&inode.inode)) return -EISDIR;
 
-    if (!edfs_disk_inode_has_indirect(&inode.inode)){
+    size_t block_size = img->sb.block_size;
+    off_t file_size = inode.inode.size;
+    off_t current_offset = 0;
+    size_t bytes_to_read = size;
 
-        for (int i = 0; i < EDFS_INODE_N_BLOCKS; i++) {
-            if (inode.inode.blocks[i] == 0) continue;
-            printf("inode block %d\n", i);
-            off_t offset = edfs_get_block_offset(&img->sb, inode.inode.blocks[i]);
-            char text[img->sb.block_size];
-            pread(img->fd, text, img->sb.block_size, offset);
-            pread(img->fd, buf, img->sb.block_size, offset);
-            printf(text);
-        }
+    if (offset + size > file_size) {
+        // make sure we don't read past the end of the file
+        bytes_to_read = file_size - offset;
     }
-    else{
-        char* text;
+
+    if (!edfs_disk_inode_has_indirect(&inode.inode)) {
         for (int i = 0; i < EDFS_INODE_N_BLOCKS; i++) {
-            printf("block %d\n",i);
-            if (inode.inode.blocks[i] == 0) continue;
-            printf("%d: continued\n",i);
+            if (inode.inode.blocks[i] == 0) break;
+            if (bytes_to_read <= 0) break;
             off_t block_offset = edfs_get_block_offset(&img->sb, inode.inode.blocks[i]);
 
-            // In het geval van grote files zijn blocks indirect blocks (check edfs_disk_inode_has_indirect)
+            if (current_offset + block_size > offset) {
+                size_t read_offset = 0;
+                if (current_offset < offset) read_offset = offset - current_offset;
+                size_t read_size = block_size - read_offset;
+                if (read_size > bytes_to_read) read_size = bytes_to_read;
+
+                pread(img->fd, buf + bytes_read, read_size, block_offset + read_offset);
+                bytes_read += read_size;
+                bytes_to_read -= read_size;
+            }
+            current_offset += block_size;
+        }
+    } else {
+        // In het geval van grote files zijn blocks indirect blocks
+        for (int i = 0; i < EDFS_INODE_N_BLOCKS; i++) {
+            if (inode.inode.blocks[i] == 0) continue;
+            if (bytes_to_read <= 0) break;
+
+            off_t block_offset = edfs_get_block_offset(&img->sb, inode.inode.blocks[i]);
+
             int NR_BLOCKS = edfs_get_n_blocks_per_indirect_block(&img->sb);
             edfs_block_t indirect_blocks[NR_BLOCKS];
-            pread(img->fd, indirect_blocks, img->sb.block_size, block_offset);
-            // Indirect block bevat een array aan edfs_block_t, dus NR_BLOCKS aantal pointers naar blocks
-            for (size_t j = 0; j < NR_BLOCKS; j++){
-                if (indirect_blocks[j] == 0){
-                     printf("%d: zero\n", j);
-                     continue;
-                    }
-                // Lees de j-de text block uit (dit doet nog niets, pakken we de verkeerde en is ie dus leeg??)
+            pread(img->fd, indirect_blocks, block_size, block_offset);
+            for (size_t j = 0; j < NR_BLOCKS && bytes_to_read > 0; j++) {
+                if (indirect_blocks[j] == 0) break;
                 block_offset = edfs_get_block_offset(&img->sb, indirect_blocks[j]);
-                char text_to_add[img->sb.block_size];
-                pread(img->fd, text_to_add, img->sb.block_size, block_offset);
-                printf("%d: %s\n", j, text_to_add);
-                pread(img->fd, buf, img->sb.block_size, block_offset);
+
+                if (current_offset + block_size > offset) {
+                    size_t read_offset = 0;
+                    if (current_offset < offset) read_offset = offset - current_offset;
+                    size_t read_size = block_size - read_offset;
+                    if (read_size > bytes_to_read) read_size = bytes_to_read;
+
+                    pread(img->fd, buf + bytes_read, read_size, block_offset + read_offset);
+                    bytes_read += read_size;
+                    bytes_to_read -= read_size;
+                }
+                current_offset += block_size;
             }
         }
-        printf(text);
-        // Hij leest de goede dingen uit, maar output het nog niet goed naar buf,
-        // Code kan netter, en:
-        // Uiteindelijk ook rekening houden dat we "size" hoeveelheid uit moeten lezen, dus evt blocks overlap
-        
- 
     }
-
-
-    /* TODO: implement
-     *
-     * See also Section 4.2 of the Appendices document.
-     *
-     * Read @size bytes of data from @path starting at @offset and write
-     * this to @buf.
-     */
-    return 0;
+    return bytes_read;
 }
+
 
 static int edfuse_write(const char *path, const char *buf, size_t size,
                         off_t offset, struct fuse_file_info *fi) {
