@@ -543,7 +543,7 @@ static int edfuse_read(const char *path, char *buf, size_t size, off_t offset,
 
 
 static int make_inode_indirect(edfs_image_t *img, edfs_inode_t *inode) {
-    printf("we maken de direct file inode indirect!");
+    printf("we maken de direct file inode indirect!\n");
 
     edfs_block_t block_nrs[EDFS_INODE_N_BLOCKS];
     for(int i = 0; i < EDFS_INODE_N_BLOCKS; i++) {
@@ -576,7 +576,7 @@ static int make_inode_indirect(edfs_image_t *img, edfs_inode_t *inode) {
 }
 
 static void make_inode_direct(edfs_image_t *img, edfs_inode_t *inode) {
-    printf("we maken de indirect-block inode direct!");
+    printf("we maken de indirect-block inode direct!\n");
 
     // find the first EDFS_INODE_N_BLOCKS in the indirect block
     // deallocate all others
@@ -772,7 +772,7 @@ static int edfuse_truncate(const char *path, off_t offset) {
     printf("hallo11\n");
 
     if(edfs_disk_inode_has_indirect(&inode.inode)) {
-        printf("hallo11\n");
+        printf("hallo12\n");
         int blocks_seen = 0;
         for(int i = 0; i < EDFS_INODE_N_BLOCKS; i++) {
             if(inode.inode.blocks[i] == 0) continue;
@@ -793,13 +793,14 @@ static int edfuse_truncate(const char *path, off_t offset) {
             pwrite(img->fd, indirect_blocks, block_size, block_offset);
         }
     } else {
-        printf("hallo12\n");
+        printf("hallo13\n");
         for(int i = new_block_count; i < old_block_count; i++) {
             if(inode.inode.blocks[i] == 0) continue;
             deallocate_block(img, inode.inode.blocks[i]);
             inode.inode.blocks[i] = 0;
         }
     }
+    printf("HALLO\n");
 
     inode.inode.size = offset;
     edfs_write_inode(img, &inode);
