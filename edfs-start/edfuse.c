@@ -547,7 +547,7 @@ static int edfuse_write(const char *path, const char *buf, size_t size,
      */
     printf("write: %s\n", path);
     printf("huh?\n");
-    printf("write size: %s\n", size);
+    printf("write size: %ld\n", size);
 
     edfs_image_t *img = get_edfs_image();
     edfs_inode_t inode = {0};
