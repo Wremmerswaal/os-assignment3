@@ -583,7 +583,7 @@ static int edfuse_truncate(const char *path, off_t offset) {
      * The size of @path must be set to be @offset. Release now superfluous
      * blocks or allocate new blocks that are necessary to cover offset.
      */
-    return -ENOSYS;
+    return 0;
 }
 
 /*
