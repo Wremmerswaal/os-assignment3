@@ -547,19 +547,18 @@ static int make_inode_indirect(edfs_image_t *img, edfs_inode_t *inode) {
 
     edfs_block_t block_nrs[EDFS_INODE_N_BLOCKS];
     for(int i = 0; i < EDFS_INODE_N_BLOCKS; i++) {
-        block_nrs[i] = inode.inode.blocks[i];
+        block_nrs[i] = inode->inode.blocks[i];
     }
 
     inode.inode.type = EDFS_INODE_TYPE_INDIRECT;
-    if(!allocate_block(img, &inode.inode.blocks[0])) {
+    if(!allocate_block(img, &inode->inode.blocks[0])) {
         return -ENOSPC;
     }
-    if(!allocate_block(img, &inode.inode.blocks[1])) {
+    if(!allocate_block(img, &inode->inode.blocks[1])) {
         return -ENOSPC;
     }
 
     inode.inode.blocks[1] = 0;
-    off_t block_offset = edfs_get_block_offset(&img->sb, inode.inode.blocks[0]);
     int NR_BLOCKS = edfs_get_n_blocks_per_indirect_block(&img->sb);
     edfs_block_t indirect_blocks[NR_BLOCKS];
 
@@ -571,7 +570,7 @@ static int make_inode_indirect(edfs_image_t *img, edfs_inode_t *inode) {
         }
     }
 
-    pwrite(img->fd, indirect_blocks, img->sb.block_size, block_offset);
+    pwrite(img->fd, indirect_blocks, img->sb.block_size, edfs_get_block_offset(&img->sb, inode->inode.blocks[0]);
     edfs_write_inode(img, inode);
     return 0;
 }
@@ -586,7 +585,7 @@ static void make_inode_direct(edfs_image_t *img, edfs_inode_t *inode) {
     int blocks_found = 0;
     for (int i = 0; i < EDFS_INODE_N_BLOCKS; i++) {
         edfs_block_t indirect_blocks[NR_BLOCKS];
-        pread(img->fd, indirect_blocks, block_size, block_offset);
+        pread(img->fd, indirect_blocks, img->sb.block_size, edfs_get_block_offset(&img->sb, inode->inode.blocks[0]));
         for(int j = 0; j < NR_BLOCKS; j++) {
             if (indirect_blocks[j] != 0) {
                 if (blocks_found == EDFS_INODE_N_BLOCKS) {
@@ -606,10 +605,10 @@ static void make_inode_direct(edfs_image_t *img, edfs_inode_t *inode) {
     }
 
 
-    inode.inode.type = EDFS_INODE_TYPE_FILE;
+    inode->inode.type = EDFS_INODE_TYPE_FILE;
 
     for (int i = 0; i < EDFS_INODE_N_BLOCKS; i++) {
-        inode.inode.blocks[i] = block_nrs[i];
+        inode->inode.blocks[i] = block_nrs[i];
     }
 
     edfs_write_inode(img, inode);
