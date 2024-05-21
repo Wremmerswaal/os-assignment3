@@ -639,6 +639,7 @@ static int edfuse_write(const char *path, const char *buf, size_t size,
     size_t bytes_to_write = size;
     size_t current_offset = offset;
     size_t bytes_written = 0;
+    return size;
 
     if (!edfs_disk_inode_has_indirect(&inode.inode)) {
         printf("direct\n");
@@ -808,11 +809,11 @@ static int edfuse_truncate(const char *path, off_t offset) {
         // }
 
 
-        for(int i = new_block_count; i < EDFS_INODE_N_BLOCKS; i++) {
-            if(inode.inode.blocks[i] == 0) continue;
-            deallocate_block(img, inode.inode.blocks[i]);
-            inode.inode.blocks[i] = 0;
-        }
+        // for(int i = new_block_count; i < EDFS_INODE_N_BLOCKS; i++) {
+        //     if(inode.inode.blocks[i] == 0) continue;
+        //     deallocate_block(img, inode.inode.blocks[i]);
+        //     inode.inode.blocks[i] = 0;
+        // }
     }
     printf("HALLO2\n");
 
