@@ -53,22 +53,7 @@ allocate_block(edfs_image_t *img, edfs_block_t *block_nr)
 static bool
 deallocate_block(edfs_image_t *img, edfs_block_t block_nr)
 {
-  // TODO: checken of dit klopt, het is nu gewoon het omgekeerde van allocate_block
-  char bitmap[img->sb.bitmap_size];
-  int bit;
-  pread(img->fd, bitmap, img->sb.bitmap_size, img->sb.bitmap_start);
-
-  int i = block_nr / 8;
-  int j = block_nr % 8;
-  bit = bitmap[i] >> j;
-  if (!(bit & 1UL)) return false;
-
-  edfs_block_t block_offset = img->sb.bitmap_start + block_nr / 8;
-  char new_byte = 0;
-
-  pread(img->fd, &new_byte, 1, block_offset);
-  new_byte -= 1 << j;
-  pwrite(img->fd, &new_byte, 1, block_offset);
+  // TODO: implementeren
   return true;
 }
 
@@ -691,14 +676,6 @@ static int edfuse_write(const char *path, const char *buf, size_t size,
 }
 
 static int edfuse_truncate(const char *path, off_t offset) {
-    /*
-     *
-     * See also Section 4.4 of the Appendices document.
-     *
-     * The size of @path must be set to be @offset. Release now superfluous
-     * blocks or allocate new blocks that are necessary to cover offset.
-     */
-
     printf("truncate: %s\n", path);
     printf("truncate offset: %ld\n", offset);
 
@@ -708,62 +685,64 @@ static int edfuse_truncate(const char *path, off_t offset) {
     if (!edfs_find_inode(img, path, &inode)) return -ENOENT;
     if (edfs_disk_inode_is_directory(&inode.inode)) return -EISDIR;
 
-    inode.inode.size = offset;
-
     size_t block_size = img->sb.block_size;
+    size_t new_block_count = (offset + block_size - 1) / block_size;
+    size_t old_block_count = (inode.inode.size + block_size - 1) / block_size;
 
-    if (!edfs_disk_inode_has_indirect(&inode.inode)) {
-        printf("truncate: direct\n");
-        for (int i = 0; i < EDFS_INODE_N_BLOCKS; i++) {
-            printf("blocks[i]: %d\n", inode.inode.blocks[i]);
-            if(inode.inode.blocks[i] == 0) break;
-            off_t block_offset = edfs_get_block_offset(&img->sb, inode.inode.blocks[i]);
-
-            if (block_offset > offset) {
+    if (offset > inode.inode.size) {
+        // File becomes larger
+        for (size_t i = old_block_count; i < new_block_count; i++) {
+            int new_block = allocate_block(img);
+            if (new_block < 0) return -ENOSPC;
+            if (i < EDFS_INODE_N_BLOCKS) {
+                inode.inode.blocks[i] = new_block;
+            } else {
+                // Switch to indirect blocks if necessary
+                if (!edfs_disk_inode_has_indirect(&inode.inode)) {
+                    int indirect_block = allocate_block(img);
+                    if (indirect_block < 0) return -ENOSPC;
+                    inode.inode.type = EDFS_INODE_TYPE_INDIRECT;
+                }
+                int NR_BLOCKS = edfs_get_n_blocks_per_indirect_block(&img->sb);
+                edfs_block_t indirect_blocks[NR_BLOCKS];
+                off_t block_offset = edfs_get_block_offset(&img->sb, inode.inode.indirect);
+                pread(img->fd, indirect_blocks, block_size, block_offset);
+                indirect_blocks[i - EDFS_INODE_N_BLOCKS] = new_block;
+                pwrite(img->fd, indirect_blocks, block_size, block_offset);
+            }
+        }
+    } else {
+        // File becomes smaller
+        for (size_t i = new_block_count; i < old_block_count; i++) {
+            if (i < EDFS_INODE_N_BLOCKS) {
                 deallocate_block(img, inode.inode.blocks[i]);
                 inode.inode.blocks[i] = 0;
-            } else if (block_offset + block_size > offset) {
-                // delete the contents of everything after offset
-                size_t write_offset_within_block = offset - block_offset;
-                size_t write_size = block_size - write_offset_within_block;
-                char empty[write_size];
-                memset(empty, 0, write_size);
-                pwrite(img->fd, empty, write_size, block_offset + write_offset_within_block);
+            } else {
+                int NR_BLOCKS = edfs_get_n_blocks_per_indirect_block(&img->sb);
+                edfs_block_t indirect_blocks[NR_BLOCKS];
+                off_t block_offset = edfs_get_block_offset(&img->sb, inode.inode.indirect);
+                pread(img->fd, indirect_blocks, block_size, block_offset);
+                deallocate_block(img, indirect_blocks[i - EDFS_INODE_N_BLOCKS]);
+                indirect_blocks[i - EDFS_INODE_N_BLOCKS] = 0;
+                pwrite(img->fd, indirect_blocks, block_size, block_offset);
             }
         }
-    }
 
-    if (edfs_disk_inode_has_indirect(&inode.inode)) {
-        printf("Hij is indirect!\n");
-
-        for (int i = 0; i < EDFS_INODE_N_BLOCKS; i++) {
-            if (inode.inode.blocks[i] == 0) continue;
-
-            off_t block_offset = edfs_get_block_offset(&img->sb, inode.inode.blocks[i]);
-
+        // Switch back to direct blocks if we now have less than 3 blocks
+        if (new_block_count <= EDFS_INODE_N_BLOCKS && edfs_disk_inode_has_indirect(&inode.inode)) {
             int NR_BLOCKS = edfs_get_n_blocks_per_indirect_block(&img->sb);
             edfs_block_t indirect_blocks[NR_BLOCKS];
+            off_t block_offset = edfs_get_block_offset(&img->sb, inode.inode.indirect);
             pread(img->fd, indirect_blocks, block_size, block_offset);
-            for (size_t j = 0; j < NR_BLOCKS; j++) {
-                block_offset = edfs_get_block_offset(&img->sb, indirect_blocks[j]);
-                if (indirect_blocks[j] == 0) break;
-
-                if (block_offset > offset) {
-                    deallocate_block(img, indirect_blocks[j]);
-                    indirect_blocks[j] = 0;
-                } else if (block_offset + block_size > offset) {
-                    // delete the contents of everything after offset
-                    size_t write_offset_within_block = offset - block_offset;
-                    size_t write_size = block_size - write_offset_within_block;
-                    char empty[write_size];
-                    memset(empty, 0, write_size);
-                    pwrite(img->fd, empty, write_size, block_offset + write_offset_within_block);
-                }
+            for (size_t i = 0; i < NR_BLOCKS; i++) {
+                if (indirect_blocks[i] != 0) deallocate_block(img, indirect_blocks[i]);
             }
-            pwrite(img->fd, indirect_blocks, block_size, block_offset);
+            deallocate_block(img, inode.inode.indirect);
+            inode.inode.type = EDFS_INODE_TYPE_FILE;
         }
     }
 
+    inode.inode.size = offset;
     edfs_write_inode(img, &inode);
 
     return 0;
