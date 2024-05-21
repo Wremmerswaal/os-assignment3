@@ -550,7 +550,7 @@ static int make_inode_indirect(edfs_image_t *img, edfs_inode_t *inode) {
         block_nrs[i] = inode->inode.blocks[i];
     }
 
-    inode.inode.type = EDFS_INODE_TYPE_INDIRECT;
+    inode->inode.type = EDFS_INODE_TYPE_INDIRECT;
     if(!allocate_block(img, &inode->inode.blocks[0])) {
         return -ENOSPC;
     }
@@ -558,7 +558,7 @@ static int make_inode_indirect(edfs_image_t *img, edfs_inode_t *inode) {
         return -ENOSPC;
     }
 
-    inode.inode.blocks[1] = 0;
+    inode->inode.blocks[1] = 0;
     int NR_BLOCKS = edfs_get_n_blocks_per_indirect_block(&img->sb);
     edfs_block_t indirect_blocks[NR_BLOCKS];
 
