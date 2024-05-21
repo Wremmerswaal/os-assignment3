@@ -675,6 +675,7 @@ static int edfuse_write(const char *path, const char *buf, size_t size,
     return bytes_written;
 }
 
+
 static int edfuse_truncate(const char *path, off_t offset) {
     printf("truncate: %s\n", path);
     printf("truncate offset: %ld\n", offset);
