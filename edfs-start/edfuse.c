@@ -771,7 +771,7 @@ static int edfuse_truncate(const char *path, off_t offset) {
 
     printf("hallo11\n");
 
-    // if(edfs_disk_inode_has_indirect(&inode.inode)) {
+    if(edfs_disk_inode_has_indirect(&inode.inode)) {
     //     printf("hallo12\n");
     //     int blocks_seen = 0;
     //     for(int i = 0; i < EDFS_INODE_N_BLOCKS; i++) {
@@ -792,14 +792,13 @@ static int edfuse_truncate(const char *path, off_t offset) {
             
     //         pwrite(img->fd, indirect_blocks, block_size, block_offset);
     //     }
-    // } else {
-    //     printf("hallo13\n");
-    //     for(int i = new_block_count; i < old_block_count; i++) {
-    //         if(inode.inode.blocks[i] == 0) continue;
-    //         deallocate_block(img, inode.inode.blocks[i]);
+    } else {
+        printf("hallo13\n");
+        for(int i = new_block_count; i < old_block_count; i++) {
+            deallocate_block(img, inode.inode.blocks[i]);
     //         inode.inode.blocks[i] = 0;
-    //     }
-    // }
+        }
+    }
     printf("HALLO2\n");
 
     inode.inode.size = offset;
