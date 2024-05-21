@@ -604,6 +604,8 @@ static int edfuse_write(const char *path, const char *buf, size_t size,
             off_t block_offset = edfs_get_block_offset(&img->sb, inode.inode.blocks[0]);
             int NR_BLOCKS = edfs_get_n_blocks_per_indirect_block(&img->sb);
             edfs_block_t indirect_blocks[NR_BLOCKS];
+            indirect_blocks[0] = block_nr_1;
+            indirect_blocks[1] = block_nr_2;
             pwrite(img->fd, indirect_blocks, 2 * sizeof(edfs_block_t), block_offset);
         }
     }
