@@ -131,6 +131,7 @@ static bool edfs_find_inode(edfs_image_t *img, const char *path,
         path = end;
     }
 
+    printf("inode klaar");
     *inode = current_inode;
 
     return true;
