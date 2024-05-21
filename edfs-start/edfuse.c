@@ -63,12 +63,16 @@ deallocate_block(edfs_image_t *img, edfs_block_t block_nr)
 static bool edfs_find_inode(edfs_image_t *img, const char *path,
                             edfs_inode_t *inode) {
     printf("path: %s\n", path);
+    printf("HE???\n");
     if (strlen(path) == 0 || path[0] != '/') return false;
+    printf("HE2???\n");
 
     edfs_inode_t current_inode;
     edfs_read_root_inode(img, &current_inode);
 
+    printf("HE3???\n");
     while (path && (path = strchr(path, '/'))) {
+        printf("HE5???\n");
         /* Ignore path separator */
         while (*path == '/') path++;
 
