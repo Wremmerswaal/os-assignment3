@@ -510,32 +510,46 @@ static int edfuse_read(const char *path, char *buf, size_t size, off_t offset,
         }
     } else {
         // indirect blocks!
+        char read_data[size];
         for (int i = 0; i < EDFS_INODE_N_BLOCKS; i++) {
             if (inode.inode.blocks[i] == 0) continue;
             if (bytes_to_read <= 0) break;
 
-            off_t block_offset = edfs_get_block_offset(&img->sb, inode.inode.blocks[i]);
+            off_t indirect_block_offset = edfs_get_block_offset(&img->sb, inode.inode.blocks[i]);
 
             int NR_BLOCKS = edfs_get_n_blocks_per_indirect_block(&img->sb);
             edfs_block_t indirect_blocks[NR_BLOCKS];
-            pread(img->fd, indirect_blocks, block_size, block_offset);
+            pread(img->fd, indirect_blocks, block_size, indirect_block_offset);
+
+
             for (size_t j = 0; j < NR_BLOCKS; j++) {
                 if (bytes_to_read <= 0) break;
                 if (indirect_blocks[j] == 0) break;
-                block_offset = edfs_get_block_offset(&img->sb, indirect_blocks[j]);
+                size_t block_offset = edfs_get_block_offset(&img->sb, indirect_blocks[j]);
 
                 if (current_offset + block_size > offset) {
+                    printf("Dit gaan we wel lezen...\n");
                     size_t read_offset = 0;
                     if (current_offset < offset) read_offset = offset - current_offset;
                     size_t read_size = block_size - read_offset;
                     if (read_size > bytes_to_read) read_size = bytes_to_read;
 
-                    pread(img->fd, buf + bytes_read, read_size, block_offset + read_offset);
+
+                    char newly_read[read_size];
+                    pread(img->fd, newly_read, read_size, block_offset + read_offset);
+                    memcpy(read_data + bytes_read, newly_read, read_size);
                     bytes_read += read_size;
                     bytes_to_read -= read_size;
+
+                    printf(newly_read);
+                    printf("\n\n");
+                } else {
+                    printf("Dit gaan we nog niet lezen...\n");
                 }
                 current_offset += block_size;
             }
+            // now copy the read data to the buffer
+            memcpy(buf, read_data, size);
         }
     }
     return bytes_read;
@@ -637,6 +651,7 @@ static int edfuse_write(const char *path, const char *buf, size_t size,
 
     size_t block_size = img->sb.block_size;
     size_t bytes_to_write = size;
+    size_t current_offset = 0;
     size_t bytes_written = 0;
 
     if (!edfs_disk_inode_has_indirect(&inode.inode)) {
@@ -652,9 +667,9 @@ static int edfuse_write(const char *path, const char *buf, size_t size,
             }
             off_t block_offset = edfs_get_block_offset(&img->sb, inode.inode.blocks[i]);
 
-            if (block_offset + block_size > offset) {
+            if (current_offset + block_size > offset) {
                 size_t write_offset = 0;
-                if (block_offset < offset) write_offset = offset - block_offset;
+                if (current_offset < offset) write_offset = offset - current_offset;
                 size_t write_size = block_size - write_offset;
                 if (write_size > bytes_to_write) write_size = bytes_to_write;
 
@@ -662,14 +677,19 @@ static int edfuse_write(const char *path, const char *buf, size_t size,
                 bytes_written += write_size;
                 bytes_to_write -= write_size;
             }
+            current_offset += block_size;
             printf("good! bytes_to_write: %ld\n", bytes_to_write);
         }
         
         if(bytes_to_write > 0) {
+            // inode needs to be made indirect...
             printf("Hij moet indirect gemaakt worden voor de write...\n");
             if(make_inode_indirect(img, &inode) == -ENOSPC) {
                 return -ENOSPC;
             }
+
+            offset += bytes_written;
+            current_offset = 0;
         }
     }
 
@@ -690,25 +710,30 @@ static int edfuse_write(const char *path, const char *buf, size_t size,
                 printf("We zitten nu bij i=%d en j=%ld\n", i, j);
                 printf("met nog te schrijven bytes: %ld\n", bytes_to_write);
                 if (bytes_to_write <= 0) break;
-                off_t block_offset = edfs_get_block_offset(&img->sb, indirect_blocks[j]);
                 if (indirect_blocks[j] == 0) {
                     if(!allocate_block(img, &indirect_blocks[j])) {
                         return -ENOSPC;
                     }
                     has_written_new_blocks = true;
                 }
+                off_t block_offset = edfs_get_block_offset(&img->sb, indirect_blocks[j]);
 
-                if (block_offset + block_size > offset) {
+                if (current_offset + block_size > offset) {
                     printf("We gaan schrijvennn!\n");
                     size_t write_offset = 0;
-                    if (block_offset < offset) write_offset = offset - block_offset;
+                    if (current_offset < offset) write_offset = offset - current_offset;
                     size_t write_size = block_size - write_offset;
                     if (write_size > bytes_to_write) write_size = bytes_to_write;
 
+                    char bytes_to_be_written[write_size];
                     pwrite(img->fd, buf + bytes_written, write_size, block_offset + write_offset);
+                    pread(img->fd, bytes_to_be_written, write_size, block_offset + write_offset);
                     bytes_written += write_size;
                     bytes_to_write -= write_size;
+                } else {
+                    printf("Het is nog even geen tijd om te schrijvennnn\n");
                 }
+                current_offset += block_size;
             }
 
             printf("Hallo!\n");
