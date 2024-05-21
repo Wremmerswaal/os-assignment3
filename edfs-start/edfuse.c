@@ -48,11 +48,7 @@ allocate_block(edfs_image_t *img, edfs_block_t *block_nr)
 }
 
 /* Searches the file system hierarchy to find the inode for
- * the given path. Returns true if the operation succeeded.
- *
- * IMPORTANT: TODO: this function is not yet complete, you have to
- * finish it! See below and Section 4.1 of the Appendices PDF.
- */
+ * the given path. Returns true if the operation succeeded. */
 static bool edfs_find_inode(edfs_image_t *img, const char *path,
                             edfs_inode_t *inode) {
     printf("path: %s\n", path);
@@ -126,15 +122,6 @@ static bool edfs_find_inode(edfs_image_t *img, const char *path,
 
     return true;
 }
-/* TODO: visit the directory entries of parent_inode and look
- * for a directory entry with the same filename as
- * direntry.filename. If found, fill in direntry.inumber with
- * the corresponding inode number.
- *
- * Write a generic function which visits directory entries,
- * you are going to need this more often. Consider implementing
- * a callback mechanism.
- */
 
 static inline void drop_trailing_slashes(char *path_copy) {
     int len = strlen(path_copy);
@@ -242,11 +229,6 @@ static int edfuse_readdir(const char *path, void *buf, fuse_fill_dir_t filler,
     filler(buf, ".", NULL, 0);
     filler(buf, "..", NULL, 0);
 
-    /* TODO: traverse all valid directory entries of @inode and call
-     * the filler function (as done above) for each entry. The second
-     * argument of the filler function is the filename you want to add.
-     */
-
     const int DIR_SIZE = edfs_get_n_dir_entries_per_block(&img->sb);
 
     for (int i = 0; i < EDFS_INODE_N_BLOCKS; i++) {
@@ -315,14 +297,6 @@ static int edfuse_mkdir(const char *path, mode_t mode) {
             return 0;
         }
     }
-
-    /* TODO: implement.
-     *
-     * See also Section 4.3 of the Appendices document.
-     *
-     * Create a new inode, register in parent directory, write inode to
-     * disk.
-     */
     return -ENOSPC;
 }
 
@@ -361,16 +335,14 @@ static int edfuse_rmdir(const char *path) {
             }
         }
     }
-    edfs_clear_inode(&img, &inode);
-
-
-    /* TODO: implement
-     *
-     * See also Section 4.3 of the Appendices document.
-     *
-     * Validate @path exists and is a directory; remove directory entry
-     * from parent directory; release allocated blocks; release inode.
-     */
+    if (found){
+        edfs_clear_inode(img, &inode);
+        inode.inumber = 0;
+        inode.inode.type = EDFS_INODE_TYPE_FREE;
+        for (int i = 0; i < EDFS_INODE_N_BLOCKS; i++) inode.inode.blocks[i] = 0;
+        edfs_write_inode(img, &inode);
+        return 0;
+    }
     return -ENOENT;
 }
 
@@ -536,7 +508,35 @@ static int edfuse_write(const char *path, const char *buf, size_t size,
      * Allocate new blocks as necessary. You may have to fill holes! Update
      * the file size if necessary.
      */
-    return -ENOSYS;
+
+    edfs_image_t *img = get_edfs_image();
+    edfs_inode_t inode = {0};
+
+    if (!edfs_find_inode(img, path, &inode)) return -ENOENT;
+    if (edfs_disk_inode_is_directory(&inode.inode)) return -EISDIR;
+
+    size_t bytes_to_write = size;
+    if (!edfs_disk_inode_has_indirect(&inode.inode)) {
+        for (int i = 0; i < EDFS_INODE_N_BLOCKS; i++) {
+            if (inode.inode.blocks[i] == 0) break;
+            if (bytes_to_write <= 0) break;
+            off_t current_offset = offset + edfs_get_block_offset(&img->sb, inode.inode.blocks[i]);
+
+            size_t bytes_written_now = bytes_to_write;
+            if (current_offset + bytes_written_now > inode.inode.size) {
+                bytes_written_now = inode.inode.size - current_offset;
+            }
+
+            pwrite(img->fd, buf, bytes_written_now, current_offset);
+
+            bytes_to_write -= bytes_written_now;
+        }
+
+        inode.inode.size = size;
+        edfs_write_inode(img, &inode);
+    }
+
+    return 0;
 }
 
 static int edfuse_truncate(const char *path, off_t offset) {
