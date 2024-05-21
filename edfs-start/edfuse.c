@@ -113,17 +113,20 @@ static bool edfs_find_inode(edfs_image_t *img, const char *path,
                 off_t offset = edfs_get_block_offset(&img->sb, current_inode.inode.blocks[i]);
                 edfs_dir_entry_t dir[DIR_SIZE];
                 pread(img->fd, dir, img->sb.block_size, offset);
+                printf("baaaha\n");
 
                 for (int j = 0; j < DIR_SIZE; j++) {
+                    printf("aaaha\n");
                     if (strcmp(dir[j].filename, direntry.filename) || dir[j].inumber == 0) continue;
                     direntry.inumber = dir[j].inumber;
                     found = true;
+                    printf("caaaha\n");
                 }
             }
 
 
             if (found) {
-                printf("huh234?");
+                printf("huh234?\n");
                 /* Found what we were looking for, now get our new inode. */
                 current_inode.inumber = direntry.inumber;
                 edfs_read_inode(img, &current_inode);
@@ -735,19 +738,19 @@ static int edfuse_write(const char *path, const char *buf, size_t size,
 
 static int edfuse_truncate(const char *path, off_t offset) {
     printf("truncate: %s\n", path);
-    printf("hallo!!!????");
+    printf("hallo!!!????\n");
     printf("truncate offset: %ld\n", offset);
 
-    printf("hallo????");
+    printf("hallo????\n");
     edfs_image_t *img = get_edfs_image();
-    printf("hallo01????");
+    printf("hallo01????\n");
     edfs_inode_t inode = {0};
-    printf("hallo02????");
+    printf("hallo02????\n");
 
     if (!edfs_find_inode(img, path, &inode)) return -ENOENT;
-    printf("hallo03!????");
+    printf("hallo03!????\n");
     if (edfs_disk_inode_is_directory(&inode.inode)) return -EISDIR;
-    printf("hallo04!????");
+    printf("hallo04!????\n");
 
     printf("hallo1");
 
