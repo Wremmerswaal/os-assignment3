@@ -632,7 +632,7 @@ static int edfuse_write(const char *path, const char *buf, size_t size,
             pread(img->fd, indirect_blocks, block_size, block_offset);
             for (size_t j = 0; j < NR_BLOCKS; j++) {
                 printf("We zitten nu bij i=%d en j=%ld\n", i, j);
-                print("met nog te lezen bytes: %ld\n", bytes_to_write);
+                printf("met nog te lezen bytes: %ld\n", bytes_to_write);
                 if (bytes_to_write <= 0) break;
                 block_offset = edfs_get_block_offset(&img->sb, indirect_blocks[j]);
                 if (indirect_blocks[j] == 0) {
