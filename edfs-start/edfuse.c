@@ -552,20 +552,22 @@ static int edfuse_write(const char *path, const char *buf, size_t size,
     if (edfs_disk_inode_is_directory(&inode.inode)) return -EISDIR;
 
     size_t bytes_to_write = size;
+    size_t current_offset = offset;
+    size_t bytes_written = 0;
+
     if (!edfs_disk_inode_has_indirect(&inode.inode)) {
         printf("indirect");
         for (int i = 0; i < EDFS_INODE_N_BLOCKS; i++) {
             printf("blocks[i]: %d\n", inode.inode.blocks[i]);
-            if (inode.inode.blocks[i] == 0) break;
+            if (inode.inode.blocks[i] == 0) continue; // of break?
             if (bytes_to_write <= 0) break;
-            off_t current_offset = offset + edfs_get_block_offset(&img->sb, inode.inode.blocks[i]);
-            printf("current_offset: %ld\n", current_offset);
 
             off_t block_offset = edfs_get_block_offset(&img->sb, inode.inode.blocks[i]);
             size_t block_start_offset = (current_offset % block_size);
             size_t write_size = block_size - block_start_offset;
 
             if (write_size > bytes_to_write) write_size = bytes_to_write;
+
 
             pwrite(img->fd, buf + bytes_written, write_size, block_offset + block_start_offset);
             bytes_written += write_size;
