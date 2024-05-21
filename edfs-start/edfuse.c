@@ -621,7 +621,7 @@ static int edfuse_write(const char *path, const char *buf, size_t size,
         printf("Hij is indirect!");
         for (int i = 0; i < EDFS_INODE_N_BLOCKS; i++) {
             if (inode.inode.blocks[i] == 0) continue;
-            if (bytes_to_read <= 0) break;
+            if (bytes_to_write <= 0) break;
 
             off_t block_offset = edfs_get_block_offset(&img->sb, inode.inode.blocks[i]);
 
