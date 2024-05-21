@@ -63,16 +63,12 @@ deallocate_block(edfs_image_t *img, edfs_block_t block_nr)
 static bool edfs_find_inode(edfs_image_t *img, const char *path,
                             edfs_inode_t *inode) {
     printf("path: %s\n", path);
-    printf("HE???\n");
     if (strlen(path) == 0 || path[0] != '/') return false;
-    printf("HE2???\n");
 
     edfs_inode_t current_inode;
     edfs_read_root_inode(img, &current_inode);
 
-    printf("HE3???\n");
     while (path && (path = strchr(path, '/'))) {
-        printf("HE5???\n");
         /* Ignore path separator */
         while (*path == '/') path++;
 
@@ -108,25 +104,20 @@ static bool edfs_find_inode(edfs_image_t *img, const char *path,
             const int DIR_SIZE = edfs_get_n_dir_entries_per_block(&img->sb);
             bool found = false;
             for (int i = 0; i < EDFS_INODE_N_BLOCKS; i++) {
-                printf("bloc2k: %d\n", i);
                 if (current_inode.inode.blocks[i] == 0) continue;
                 off_t offset = edfs_get_block_offset(&img->sb, current_inode.inode.blocks[i]);
                 edfs_dir_entry_t dir[DIR_SIZE];
                 pread(img->fd, dir, img->sb.block_size, offset);
-                printf("baaaha\n");
 
                 for (int j = 0; j < DIR_SIZE; j++) {
-                    printf("aaaha\n");
                     if (strcmp(dir[j].filename, direntry.filename) || dir[j].inumber == 0) continue;
                     direntry.inumber = dir[j].inumber;
                     found = true;
-                    printf("caaaha\n");
                 }
             }
 
 
             if (found) {
-                printf("huh234?\n");
                 /* Found what we were looking for, now get our new inode. */
                 current_inode.inumber = direntry.inumber;
                 edfs_read_inode(img, &current_inode);
@@ -136,7 +127,6 @@ static bool edfs_find_inode(edfs_image_t *img, const char *path,
         path = end;
     }
 
-    printf("inode klaar");
     *inode = current_inode;
 
     return true;
@@ -738,57 +728,51 @@ static int edfuse_write(const char *path, const char *buf, size_t size,
 
 static int edfuse_truncate(const char *path, off_t offset) {
     printf("truncate: %s\n", path);
-    printf("hallo!!!????\n");
     printf("truncate offset: %ld\n", offset);
 
-    printf("hallo????\n");
     edfs_image_t *img = get_edfs_image();
-    printf("hallo01????\n");
     edfs_inode_t inode = {0};
-    printf("hallo02????\n");
 
     if (!edfs_find_inode(img, path, &inode)) return -ENOENT;
-    printf("hallo03!????\n");
     if (edfs_disk_inode_is_directory(&inode.inode)) return -EISDIR;
-    printf("hallo04!????\n");
 
-    printf("hallo1");
+    printf("hallo1\n");
 
     size_t block_size = img->sb.block_size;
     size_t new_block_count = offset / block_size;
     if (offset % block_size) new_block_count++;
-    printf("hallo2");
+    printf("hallo2\n");
 
     size_t old_block_count = inode.inode.size / block_size;
     if (inode.inode.size % block_size) old_block_count++;
     int NR_BLOCKS = edfs_get_n_blocks_per_indirect_block(&img->sb);
 
-    printf("hallo3");
+    printf("hallo3\n");
     if (offset == inode.inode.size) return 0;
 
-    printf("hallo4");
+    printf("hallo4\n");
     if(edfs_disk_inode_has_indirect(&inode.inode)) {
-        printf("hallo5");
+        printf("hallo5\n");
         if(new_block_count < EDFS_INODE_N_BLOCKS) {
             // there are currently indirect blocks, but there is no need for this
-            printf("hallo6");
+            printf("hallo6\n");
             make_inode_direct(img, &inode);
-            printf("hallo7");
+            printf("hallo7\n");
         }
     } else {
         printf("hallo8");
         if(new_block_count > EDFS_INODE_N_BLOCKS) {
             // there are currently no indirect blocks, but there should be
-            printf("hallo9");
+            printf("hallo9\n");
             make_inode_indirect(img, &inode);
-            printf("hallo10");
+            printf("hallo10\n");
         }
     }
 
-    printf("hallo11");
+    printf("hallo11\n");
 
     if(edfs_disk_inode_has_indirect(&inode.inode)) {
-        printf("hallo11");
+        printf("hallo11\n");
         int blocks_seen = 0;
         for(int i = 0; i < EDFS_INODE_N_BLOCKS; i++) {
             if(inode.inode.blocks[i] == 0) continue;
@@ -809,7 +793,7 @@ static int edfuse_truncate(const char *path, off_t offset) {
             pwrite(img->fd, indirect_blocks, block_size, block_offset);
         }
     } else {
-        printf("hallo12");
+        printf("hallo12\n");
         for(int i = new_block_count; i < old_block_count; i++) {
             if(inode.inode.blocks[i] == 0) continue;
             deallocate_block(img, inode.inode.blocks[i]);
