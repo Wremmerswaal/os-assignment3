@@ -738,7 +738,9 @@ static int edfuse_truncate(const char *path, off_t offset) {
     printf("hallo02????");
 
     if (!edfs_find_inode(img, path, &inode)) return -ENOENT;
+    printf("hallo03!????");
     if (edfs_disk_inode_is_directory(&inode.inode)) return -EISDIR;
+    printf("hallo04!????");
 
     printf("hallo1");
 
