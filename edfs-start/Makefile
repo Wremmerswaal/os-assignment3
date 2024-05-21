@@ -15,7 +15,7 @@ HEADERS = \
 
 all:	$(TARGETS)
 
-edfuse:		edfuse.o $(OBJS)
+edfuser:		edfuse.o $(OBJS)
 		$(CC) $(CFLAGS) $(FUSE_CFLAGS) -o $@ $^ $(FUSE_LDFLAGS)
 
 %.o:		%.c $(HEADERS)
