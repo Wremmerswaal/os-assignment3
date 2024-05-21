@@ -724,10 +724,11 @@ static int edfuse_truncate(const char *path, off_t offset) {
                 inode.inode.blocks[i] = 0;
             } else if (block_offset + block_size > offset) {
                 // delete the contents of everything after offset
-                size_t write_size = block_size - (offset - block_offset);
+                size_t write_offset_within_block = offset - block_offset;
+                size_t write_size = block_size - write_offset_within_block;
                 char empty[write_size];
                 memset(empty, 0, write_size);
-                pwrite(img->fd, empty, write_size, block_offset + write_offset);
+                pwrite(img->fd, empty, write_size, block_offset + write_offset_within_block);
             }
         }
     }
