@@ -53,8 +53,13 @@ allocate_block(edfs_image_t *img, edfs_block_t *block_nr)
 static bool
 deallocate_block(edfs_image_t *img, edfs_block_t block_nr)
 {
-  // TODO: implementeren
-  return true;
+    char bitmap[img->sb.bitmap_size];
+    pread(img->fd, bitmap, img->sb.bitmap_size, img->sb.bitmap_start) != img->sb.bitmap_size);
+    int byte_index = block_nr / 8;
+    int bit_index = block_nr % 8;
+    bitmap[byte_index] &= ~(1 << bit_index);
+    pwrite(img->fd, bitmap, img->sb.bitmap_size, img->sb.bitmap_start) != img->sb.bitmap_size);
+    return true;
 }
 
 /* Searches the file system hierarchy to find the inode for
