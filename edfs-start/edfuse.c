@@ -772,36 +772,51 @@ static int edfuse_truncate(const char *path, off_t offset) {
     printf("hallo11\n");
 
     if(edfs_disk_inode_has_indirect(&inode.inode)) {
-    //     printf("hallo12\n");
-    //     int blocks_seen = 0;
-    //     for(int i = 0; i < EDFS_INODE_N_BLOCKS; i++) {
-    //         if(inode.inode.blocks[i] == 0) continue;
+        printf("hallo12\n");
+        int blocks_seen = 0;
+        for(int i = 0; i < EDFS_INODE_N_BLOCKS; i++) {
+            if(inode.inode.blocks[i] == 0) continue;
 
-    //         off_t block_offset = edfs_get_block_offset(&img->sb, inode.inode.blocks[i]);
-    //         edfs_block_t indirect_blocks[NR_BLOCKS];
-    //         pread(img->fd, indirect_blocks, block_size, block_offset);
+            off_t block_offset = edfs_get_block_offset(&img->sb, inode.inode.blocks[i]);
+            edfs_block_t indirect_blocks[NR_BLOCKS];
+            pread(img->fd, indirect_blocks, block_size, block_offset);
 
-    //         for(int j = 0; j < NR_BLOCKS; j++) {
-    //             if(indirect_blocks[j] == 0) continue;
-    //             if(blocks_seen >= new_block_count) {
-    //                 deallocate_block(img, indirect_blocks[j]);
-    //                 indirect_blocks[j] = 0;
-    //             }
-    //             blocks_seen++;
-    //         }
+            for(int j = 0; j < NR_BLOCKS; j++) {
+                if(indirect_blocks[j] == 0) continue;
+                if(blocks_seen >= new_block_count) {
+                    deallocate_block(img, indirect_blocks[j]);
+                    indirect_blocks[j] = 0;
+                }
+                blocks_seen++;
+            }
             
-    //         pwrite(img->fd, indirect_blocks, block_size, block_offset);
-    //     }
+            pwrite(img->fd, indirect_blocks, block_size, block_offset);
+        }
     } else {
         printf("hallo13\n");
-        for(int i = new_block_count; i < old_block_count; i++) {
+        // we have a direct block, and now with only new_block_count blocks
+        edfs_block_t new_last_block = inode.inode.blocks[new_block_count - 1];
+        // if offset falls within the last block, we need to cut off the remaining part of it
+        // if(offset % block_size) {
+        //     // for the remainder of this block, write zeroes
+        //     off_t block_offset = edfs_get_block_offset(&img->sb, new_last_block);
+
+        //     char zeroes[block_size];
+        //     memset(zeroes, 0, block_size);
+        //     size_t write_size = block_size - (offset % block_size);
+        //     pwrite(img->fd, zeroes, write_size, block_offset + (offset % block_size));
+        // }
+
+
+        for(int i = new_block_count; i < EDFS_INODE_N_BLOCKS; i++) {
+            if(inode.inode.blocks[i] == 0) continue;
             deallocate_block(img, inode.inode.blocks[i]);
-    //         inode.inode.blocks[i] = 0;
+            inode.inode.blocks[i] = 0;
         }
     }
     printf("HALLO2\n");
 
-    inode.inode.size = offset;
+    // inode.inode.size = offset;
     edfs_write_inode(img, &inode);
 
     return 0;
