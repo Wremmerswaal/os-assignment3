@@ -771,35 +771,35 @@ static int edfuse_truncate(const char *path, off_t offset) {
 
     printf("hallo11\n");
 
-    if(edfs_disk_inode_has_indirect(&inode.inode)) {
-        printf("hallo12\n");
-        int blocks_seen = 0;
-        for(int i = 0; i < EDFS_INODE_N_BLOCKS; i++) {
-            if(inode.inode.blocks[i] == 0) continue;
+    // if(edfs_disk_inode_has_indirect(&inode.inode)) {
+    //     printf("hallo12\n");
+    //     int blocks_seen = 0;
+    //     for(int i = 0; i < EDFS_INODE_N_BLOCKS; i++) {
+    //         if(inode.inode.blocks[i] == 0) continue;
 
-            off_t block_offset = edfs_get_block_offset(&img->sb, inode.inode.blocks[i]);
-            edfs_block_t indirect_blocks[NR_BLOCKS];
-            pread(img->fd, indirect_blocks, block_size, block_offset);
+    //         off_t block_offset = edfs_get_block_offset(&img->sb, inode.inode.blocks[i]);
+    //         edfs_block_t indirect_blocks[NR_BLOCKS];
+    //         pread(img->fd, indirect_blocks, block_size, block_offset);
 
-            for(int j = 0; j < NR_BLOCKS; j++) {
-                if(indirect_blocks[j] == 0) continue;
-                if(blocks_seen >= new_block_count) {
-                    deallocate_block(img, indirect_blocks[j]);
-                    indirect_blocks[j] = 0;
-                }
-                blocks_seen++;
-            }
+    //         for(int j = 0; j < NR_BLOCKS; j++) {
+    //             if(indirect_blocks[j] == 0) continue;
+    //             if(blocks_seen >= new_block_count) {
+    //                 deallocate_block(img, indirect_blocks[j]);
+    //                 indirect_blocks[j] = 0;
+    //             }
+    //             blocks_seen++;
+    //         }
             
-            pwrite(img->fd, indirect_blocks, block_size, block_offset);
-        }
-    } else {
-        printf("hallo13\n");
-        for(int i = new_block_count; i < old_block_count; i++) {
-            if(inode.inode.blocks[i] == 0) continue;
-            deallocate_block(img, inode.inode.blocks[i]);
-            inode.inode.blocks[i] = 0;
-        }
-    }
+    //         pwrite(img->fd, indirect_blocks, block_size, block_offset);
+    //     }
+    // } else {
+    //     printf("hallo13\n");
+    //     for(int i = new_block_count; i < old_block_count; i++) {
+    //         if(inode.inode.blocks[i] == 0) continue;
+    //         deallocate_block(img, inode.inode.blocks[i]);
+    //         inode.inode.blocks[i] = 0;
+    //     }
+    // }
     printf("HALLO\n");
 
     inode.inode.size = offset;
