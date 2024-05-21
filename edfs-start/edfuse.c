@@ -570,7 +570,7 @@ static int make_inode_indirect(edfs_image_t *img, edfs_inode_t *inode) {
         }
     }
 
-    pwrite(img->fd, indirect_blocks, img->sb.block_size, edfs_get_block_offset(&img->sb, inode->inode.blocks[0]);
+    pwrite(img->fd, indirect_blocks, img->sb.block_size, edfs_get_block_offset(&img->sb, inode->inode.blocks[0]));
     edfs_write_inode(img, inode);
     return 0;
 }
