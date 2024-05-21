@@ -48,7 +48,11 @@ allocate_block(edfs_image_t *img, edfs_block_t *block_nr)
 }
 
 /* Searches the file system hierarchy to find the inode for
- * the given path. Returns true if the operation succeeded. */
+ * the given path. Returns true if the operation succeeded.
+ *
+ * IMPORTANT: TODO: this function is not yet complete, you have to
+ * finish it! See below and Section 4.1 of the Appendices PDF.
+ */
 static bool edfs_find_inode(edfs_image_t *img, const char *path,
                             edfs_inode_t *inode) {
     printf("path: %s\n", path);
@@ -89,24 +93,22 @@ static bool edfs_find_inode(edfs_image_t *img, const char *path,
         strncpy(direntry.filename, path, len);
         direntry.filename[len] = 0;
         if (direntry.filename[0] != 0) {
-            // TODOR: Hier 1 functie van maken en gebruiken bij zowel find_inode
-            // als readdir
+            // TODOR: Hier 1 functie van maken en gebruiken bij zowel find_inode als readdir
             const int DIR_SIZE = edfs_get_n_dir_entries_per_block(&img->sb);
             bool found = false;
             for (int i = 0; i < EDFS_INODE_N_BLOCKS; i++) {
                 if (current_inode.inode.blocks[i] == 0) continue;
-                off_t offset = edfs_get_block_offset(
-                    &img->sb, current_inode.inode.blocks[i]);
+                off_t offset = edfs_get_block_offset(&img->sb, current_inode.inode.blocks[i]);
                 edfs_dir_entry_t dir[DIR_SIZE];
                 pread(img->fd, dir, img->sb.block_size, offset);
 
                 for (int j = 0; j < DIR_SIZE; j++) {
-                    if (!strcmp(dir[j].filename, direntry.filename) && dir[j].inumber != 0) {
-                        direntry.inumber = dir[j].inumber;
-                        found = true;
-                    }
+                    if (strcmp(dir[j].filename, direntry.filename) || dir[j].inumber == 0) continue;
+                    direntry.inumber = dir[j].inumber;
+                    found = true;
                 }
             }
+
 
             if (found) {
                 /* Found what we were looking for, now get our new inode. */
@@ -122,6 +124,15 @@ static bool edfs_find_inode(edfs_image_t *img, const char *path,
 
     return true;
 }
+            /* TODO: visit the directory entries of parent_inode and look
+             * for a directory entry with the same filename as
+             * direntry.filename. If found, fill in direntry.inumber with
+             * the corresponding inode number.
+             *
+             * Write a generic function which visits directory entries,
+             * you are going to need this more often. Consider implementing
+             * a callback mechanism.
+             */
 
 static inline void drop_trailing_slashes(char *path_copy) {
     int len = strlen(path_copy);
@@ -229,6 +240,11 @@ static int edfuse_readdir(const char *path, void *buf, fuse_fill_dir_t filler,
     filler(buf, ".", NULL, 0);
     filler(buf, "..", NULL, 0);
 
+    /* TODO: traverse all valid directory entries of @inode and call
+     * the filler function (as done above) for each entry. The second
+     * argument of the filler function is the filename you want to add.
+     */
+
     const int DIR_SIZE = edfs_get_n_dir_entries_per_block(&img->sb);
 
     for (int i = 0; i < EDFS_INODE_N_BLOCKS; i++) {
@@ -238,10 +254,9 @@ static int edfuse_readdir(const char *path, void *buf, fuse_fill_dir_t filler,
         pread(img->fd, dir, img->sb.block_size, offset);
 
         for (int j = 0; j < DIR_SIZE; j++) {
-            if (dir[j].inumber != 0) {
-              char* filename = dir[j].filename;
-              filler(buf, filename, NULL, 0);
-            }
+            if (dir[j].inumber == 0) continue;
+            char* filename = dir[j].filename;
+            filler(buf, filename, NULL, 0);
         }
     }
 
@@ -297,6 +312,14 @@ static int edfuse_mkdir(const char *path, mode_t mode) {
             return 0;
         }
     }
+
+    /* TODO: implement.
+     *
+     * See also Section 4.3 of the Appendices document.
+     *
+     * Create a new inode, register in parent directory, write inode to
+     * disk.
+     */
     return -ENOSPC;
 }
 
@@ -317,21 +340,25 @@ static int edfuse_rmdir(const char *path) {
     };
     edfs_get_parent_inode(img, path, &parent_inode);
 
-
-
+    bool found = false;
+    off_t offset;
     const int DIR_SIZE = edfs_get_n_dir_entries_per_block(&img->sb);
     edfs_dir_entry_t dir[DIR_SIZE];
 
 
     for (int i = 0; i < EDFS_INODE_N_BLOCKS; i++) {
         if (parent_inode.inode.blocks[i] == 0) continue;
-        off_t offset = edfs_get_block_offset(&img->sb, parent_inode.inode.blocks[i]);
-        edfs_dir_entry_t dir[DIR_SIZE];
+        offset = edfs_get_block_offset(&img->sb, parent_inode.inode.blocks[i]);
         pread(img->fd, dir, img->sb.block_size, offset);
 
         for (int j = 0; j < DIR_SIZE; j++) {
-            if (!strcmp(dir[j].inumber, inode.inumber) && dir[j].inumber != 0) {
-                // remove dir[j] 
+            if (dir[j].inumber == inode.inumber && dir[j].inumber != 0) {
+                edfs_dir_entry_t found_dir_entry;
+                found_dir_entry.inumber = 0;
+                offset = edfs_get_block_offset(&img->sb, parent_inode.inode.blocks[i]) + sizeof(edfs_dir_entry_t) * j;
+                memset(&found_dir_entry, 0, sizeof(edfs_dir_entry_t));
+                pwrite(img->fd, &found_dir_entry, sizeof(edfs_dir_entry_t), offset);
+                found = true;
             }
         }
     }
@@ -343,6 +370,14 @@ static int edfuse_rmdir(const char *path) {
         edfs_write_inode(img, &inode);
         return 0;
     }
+
+    /* TODO: implement
+     *
+     * See also Section 4.3 of the Appendices document.
+     *
+     * Validate @path exists and is a directory; remove directory entry
+     * from parent directory; release allocated blocks; release inode.
+     */
     return -ENOENT;
 }
 
@@ -409,9 +444,9 @@ static int edfuse_create(const char *path, mode_t mode,
      * Create a new inode, attempt to register in parent directory,
      * write inode to disk.
      */
-
-    // filenames are restricted to 59 bytes (excluding null-terminator) and may
-    // only contain: A-Z, a-z, 0-9, spaces (“ ”) and dots (“.”).
+  
+  // filenames are restricted to 59 bytes (excluding null-terminator) and may only contain: A-Z,
+  // a-z, 0-9, spaces (“ ”) and dots (“.”).
     return -ENOSYS;
 }
 
@@ -500,8 +535,7 @@ static int edfuse_read(const char *path, char *buf, size_t size, off_t offset,
 
 static int edfuse_write(const char *path, const char *buf, size_t size,
                         off_t offset, struct fuse_file_info *fi) {
-    /* TODO: implement
-     *
+    /* 
      * See also Section 4.4 of the Appendices document.
      *
      * Write @size bytes of data from @buf to @path starting at @offset.
