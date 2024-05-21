@@ -563,8 +563,9 @@ static int edfuse_write(const char *path, const char *buf, size_t size,
             if (bytes_to_write <= 0) break;
 
             if (inode.inode.blocks[i] == 0) {
-                if (edfs_allocate_block(img, &inode) < 0) return -ENOSPC;
-                inode.inode.blocks[i] = edfs_allocate_block(img, &inode);
+                if (!allocate_block(img, &inode.inode.blocks[i])) {
+                    return -ENOSPC;
+                }
             }
 
             off_t block_offset = edfs_get_block_offset(&img->sb, inode.inode.blocks[i]);
