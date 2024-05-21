@@ -728,10 +728,14 @@ static int edfuse_write(const char *path, const char *buf, size_t size,
 
 static int edfuse_truncate(const char *path, off_t offset) {
     printf("truncate: %s\n", path);
+    printf("hallo!!!????");
     printf("truncate offset: %ld\n", offset);
 
+    printf("hallo????");
     edfs_image_t *img = get_edfs_image();
+    printf("hallo01????");
     edfs_inode_t inode = {0};
+    printf("hallo02????");
 
     if (!edfs_find_inode(img, path, &inode)) return -ENOENT;
     if (edfs_disk_inode_is_directory(&inode.inode)) return -EISDIR;
