@@ -688,39 +688,40 @@ static int edfuse_truncate(const char *path, off_t offset) {
     size_t block_size = img->sb.block_size;
     size_t new_block_count = (offset + block_size - 1) / block_size;
     size_t old_block_count = (inode.inode.size + block_size - 1) / block_size;
+    int NR_BLOCKS = edfs_get_n_blocks_per_indirect_block(&img->sb);
 
     if (offset > inode.inode.size) {
-        // File becomes larger
+        // Extending the file
         for (size_t i = old_block_count; i < new_block_count; i++) {
             int new_block = allocate_block(img);
-            if (new_block < 0) return -ENOSPC;
+            if (new_block < 0) return -ENOSPC; // No space left on device
             if (i < EDFS_INODE_N_BLOCKS) {
                 inode.inode.blocks[i] = new_block;
             } else {
                 // Switch to indirect blocks if necessary
-                if (!edfs_disk_inode_has_indirect(&inode.inode)) {
+                if (inode.inode.type != EDFS_INODE_TYPE_INDIRECT) {
                     int indirect_block = allocate_block(img);
                     if (indirect_block < 0) return -ENOSPC;
                     inode.inode.type = EDFS_INODE_TYPE_INDIRECT;
+                    memset(inode.inode.blocks, 0, sizeof(inode.inode.blocks));
+                    inode.inode.blocks[0] = indirect_block;
                 }
-                int NR_BLOCKS = edfs_get_n_blocks_per_indirect_block(&img->sb);
                 edfs_block_t indirect_blocks[NR_BLOCKS];
-                off_t block_offset = edfs_get_block_offset(&img->sb, inode.inode.indirect);
+                off_t block_offset = edfs_get_block_offset(&img->sb, inode.inode.blocks[0]);
                 pread(img->fd, indirect_blocks, block_size, block_offset);
                 indirect_blocks[i - EDFS_INODE_N_BLOCKS] = new_block;
                 pwrite(img->fd, indirect_blocks, block_size, block_offset);
             }
         }
     } else {
-        // File becomes smaller
+        // Shrinking the file
         for (size_t i = new_block_count; i < old_block_count; i++) {
             if (i < EDFS_INODE_N_BLOCKS) {
                 deallocate_block(img, inode.inode.blocks[i]);
                 inode.inode.blocks[i] = 0;
-            } else {
-                int NR_BLOCKS = edfs_get_n_blocks_per_indirect_block(&img->sb);
+            } else if (inode.inode.type == EDFS_INODE_TYPE_INDIRECT) {
                 edfs_block_t indirect_blocks[NR_BLOCKS];
-                off_t block_offset = edfs_get_block_offset(&img->sb, inode.inode.indirect);
+                off_t block_offset = edfs_get_block_offset(&img->sb, inode.inode.blocks[0]);
                 pread(img->fd, indirect_blocks, block_size, block_offset);
                 deallocate_block(img, indirect_blocks[i - EDFS_INODE_N_BLOCKS]);
                 indirect_blocks[i - EDFS_INODE_N_BLOCKS] = 0;
@@ -728,17 +729,17 @@ static int edfuse_truncate(const char *path, off_t offset) {
             }
         }
 
-        // Switch back to direct blocks if we now have less than 3 blocks
-        if (new_block_count <= EDFS_INODE_N_BLOCKS && edfs_disk_inode_has_indirect(&inode.inode)) {
-            int NR_BLOCKS = edfs_get_n_blocks_per_indirect_block(&img->sb);
+        // If the file has shrunk enough to no longer need indirect blocks
+        if (new_block_count <= EDFS_INODE_N_BLOCKS && inode.inode.type == EDFS_INODE_TYPE_INDIRECT) {
             edfs_block_t indirect_blocks[NR_BLOCKS];
-            off_t block_offset = edfs_get_block_offset(&img->sb, inode.inode.indirect);
+            off_t block_offset = edfs_get_block_offset(&img->sb, inode.inode.blocks[0]);
             pread(img->fd, indirect_blocks, block_size, block_offset);
             for (size_t i = 0; i < NR_BLOCKS; i++) {
                 if (indirect_blocks[i] != 0) deallocate_block(img, indirect_blocks[i]);
             }
-            deallocate_block(img, inode.inode.indirect);
+            deallocate_block(img, inode.inode.blocks[0]);
             inode.inode.type = EDFS_INODE_TYPE_FILE;
+            memset(inode.inode.blocks, 0, sizeof(inode.inode.blocks));
         }
     }
 
@@ -747,6 +748,7 @@ static int edfuse_truncate(const char *path, off_t offset) {
 
     return 0;
 }
+
 
 /*
  * FUSE setup
