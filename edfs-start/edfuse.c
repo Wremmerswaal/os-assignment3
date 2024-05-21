@@ -542,7 +542,6 @@ static int edfuse_write(const char *path, const char *buf, size_t size,
      * Allocate new blocks as necessary. You may have to fill holes! Update
      * the file size if necessary.
      */
-
     printf("write: %s\n", path);
 
     edfs_image_t *img = get_edfs_image();
@@ -557,18 +556,22 @@ static int edfuse_write(const char *path, const char *buf, size_t size,
     size_t bytes_written = 0;
 
     if (!edfs_disk_inode_has_indirect(&inode.inode)) {
-        printf("indirect");
+        printf("indirect\n");
         for (int i = 0; i < EDFS_INODE_N_BLOCKS; i++) {
             printf("blocks[i]: %d\n", inode.inode.blocks[i]);
-            if (inode.inode.blocks[i] == 0) continue; // of break?
+
             if (bytes_to_write <= 0) break;
+
+            if (inode.inode.blocks[i] == 0) {
+                if (edfs_allocate_block(img, &inode) < 0) return -ENOSPC;
+                inode.inode.blocks[i] = edfs_allocate_block(img, &inode);
+            }
 
             off_t block_offset = edfs_get_block_offset(&img->sb, inode.inode.blocks[i]);
             size_t block_start_offset = (current_offset % block_size);
             size_t write_size = block_size - block_start_offset;
 
             if (write_size > bytes_to_write) write_size = bytes_to_write;
-
 
             pwrite(img->fd, buf + bytes_written, write_size, block_offset + block_start_offset);
             bytes_written += write_size;
@@ -577,11 +580,13 @@ static int edfuse_write(const char *path, const char *buf, size_t size,
             printf("good! bytes_to_write: %ld\n", bytes_to_write);
         }
 
-        inode.inode.size = size;
+        if (offset + size > inode.inode.size) {
+            inode.inode.size = offset + size;
+        }
         edfs_write_inode(img, &inode);
     }
 
-    return 0;
+    return bytes_written;
 }
 
 static int edfuse_truncate(const char *path, off_t offset) {
