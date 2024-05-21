@@ -108,6 +108,7 @@ static bool edfs_find_inode(edfs_image_t *img, const char *path,
             const int DIR_SIZE = edfs_get_n_dir_entries_per_block(&img->sb);
             bool found = false;
             for (int i = 0; i < EDFS_INODE_N_BLOCKS; i++) {
+                printf("bloc2k: %d\n", i);
                 if (current_inode.inode.blocks[i] == 0) continue;
                 off_t offset = edfs_get_block_offset(&img->sb, current_inode.inode.blocks[i]);
                 edfs_dir_entry_t dir[DIR_SIZE];
@@ -122,6 +123,7 @@ static bool edfs_find_inode(edfs_image_t *img, const char *path,
 
 
             if (found) {
+                printf("huh234?");
                 /* Found what we were looking for, now get our new inode. */
                 current_inode.inumber = direntry.inumber;
                 edfs_read_inode(img, &current_inode);
