@@ -619,7 +619,7 @@ static int edfuse_write(const char *path, const char *buf, size_t size,
     }
 
     if (edfs_disk_inode_has_indirect(&inode.inode)) {
-        printf("Hij is indirect!");
+        printf("Hij is indirect!\n");
         for (int i = 0; i < EDFS_INODE_N_BLOCKS; i++) {
             if (inode.inode.blocks[i] == 0) continue;
             if (bytes_to_write <= 0) break;
@@ -631,6 +631,8 @@ static int edfuse_write(const char *path, const char *buf, size_t size,
             int has_written_new_blocks = -1;
             pread(img->fd, indirect_blocks, block_size, block_offset);
             for (size_t j = 0; j < NR_BLOCKS; j++) {
+                printf("We zitten nu bij i=%d en j=%ld\n", i, j);
+                print("met nog te lezen bytes: %ld\n", bytes_to_write);
                 if (bytes_to_write <= 0) break;
                 block_offset = edfs_get_block_offset(&img->sb, indirect_blocks[j]);
                 if (indirect_blocks[j] == 0) {
