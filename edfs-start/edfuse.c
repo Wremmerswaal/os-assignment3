@@ -1,6 +1,8 @@
 /* EdFS -- An educational file system
  *
  * Copyright (C) 2017,2019  Leiden University, The Netherlands.
+ * 
+ * Edited by Wouter Remmerswaal (2665050) & Stan van Baarsen (2624672)
  */
 
 #define FUSE_USE_VERSION 26
@@ -556,7 +558,7 @@ static int edfuse_write(const char *path, const char *buf, size_t size,
     size_t bytes_written = 0;
 
     if (!edfs_disk_inode_has_indirect(&inode.inode)) {
-        printf("indirect\n");
+        printf("direct\n");
         for (int i = 0; i < EDFS_INODE_N_BLOCKS; i++) {
             printf("blocks[i]: %d\n", inode.inode.blocks[i]);
 
@@ -580,12 +582,40 @@ static int edfuse_write(const char *path, const char *buf, size_t size,
             current_offset += write_size;
             printf("good! bytes_to_write: %ld\n", bytes_to_write);
         }
+        
+        if(bytes_to_write > 0) {
+            printf("we maken de direct block indirect!");
+            // make block indirect
+            
+            // TODO: eerst direct helemaal volschrijven, pas dan indirect maken...dan weet je zeker dat je blocks[0] en blocks[1] gedefinieerd zijn
+            
+            edfs_block_t block_nr_1 = inode.inode.blocks[0];
+            edfs_block_t block_nr_2 = inode.inode.blocks[1];
+            
+            inode.inode.type = EDFS_INODE_TYPE_INDIRECT;
+            if(!allocate_block(img, &inode.inode.blocks[0])) {
+                return -ENOSPC;
+            }
+            if(!allocate_block(img, &inode.inode.blocks[1])) {
+                return -ENOSPC;
+            }
 
-        if (offset + size > inode.inode.size) {
-            inode.inode.size = offset + size;
+            inode.inode.blocks[1] = 0;
+            off_t block_offset = edfs_get_block_offset(&img->sb, inode.inode.blocks[0]);
+            int NR_BLOCKS = edfs_get_n_blocks_per_indirect_block(&img->sb);
+            edfs_block_t indirect_blocks[NR_BLOCKS];
+            pwrite(img->fd, indirect_blocks, 2 * sizeof(edfs_block_t), block_offset);
         }
-        edfs_write_inode(img, &inode);
     }
+
+    if (!edfs_disk_inode_has_indirect(&inode.inode)) {
+        printf("Hij is indirect!");
+    }
+
+    if (offset + size > inode.inode.size) {
+        inode.inode.size = offset + size;
+    }
+    edfs_write_inode(img, &inode);
 
     return bytes_written;
 }
