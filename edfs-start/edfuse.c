@@ -551,6 +551,7 @@ static int edfuse_write(const char *path, const char *buf, size_t size,
     if (!edfs_find_inode(img, path, &inode)) return -ENOENT;
     if (edfs_disk_inode_is_directory(&inode.inode)) return -EISDIR;
 
+    size_t block_size = img->sb.block_size;
     size_t bytes_to_write = size;
     size_t current_offset = offset;
     size_t bytes_written = 0;
