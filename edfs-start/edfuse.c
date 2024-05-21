@@ -800,7 +800,7 @@ static int edfuse_truncate(const char *path, off_t offset) {
     //         inode.inode.blocks[i] = 0;
     //     }
     // }
-    printf("HALLO\n");
+    printf("HALLO2\n");
 
     inode.inode.size = offset;
     edfs_write_inode(img, &inode);
