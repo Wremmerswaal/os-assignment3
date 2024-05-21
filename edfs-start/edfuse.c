@@ -694,14 +694,15 @@ static int edfuse_truncate(const char *path, off_t offset) {
     if (offset > inode.inode.size) {
         // Extending the file
         for (size_t i = old_block_count; i < new_block_count; i++) {
-            int new_block = allocate_block(img);
-            if (new_block < 0) return -ENOSPC; // No space left on device
+            edfs_block_t new_block;
+            if (!allocate_block(img, &new_block)) return -ENOSPC;
             if (i < EDFS_INODE_N_BLOCKS) {
                 inode.inode.blocks[i] = new_block;
             } else {
-                // Switch to indirect blocks if necessary
+                // Switch to indirect blocks...
                 if (inode.inode.type != EDFS_INODE_TYPE_INDIRECT) {
-                    int indirect_block = allocate_block(img);
+                    edfs_block_t indirect_block;
+                    if (!allocate_block(img, &indirect_block)) return -ENOSPC;
                     if (indirect_block < 0) return -ENOSPC;
                     inode.inode.type = EDFS_INODE_TYPE_INDIRECT;
                     memset(inode.inode.blocks, 0, sizeof(inode.inode.blocks));
