@@ -26,27 +26,28 @@ static inline edfs_image_t *get_edfs_image(void) {
 static bool
 allocate_block(edfs_image_t *img, edfs_block_t *block_nr)
 {
-  char bitmap[img->sb.bitmap_size];
-  int bit;
-  pread(img->fd, bitmap, img->sb.bitmap_size, img->sb.bitmap_start);
+    char bitmap[img->sb.bitmap_size];
+    int bit;
+    pread(img->fd, bitmap, img->sb.bitmap_size, img->sb.bitmap_start);
 
-  for (int i = 0; i < img->sb.bitmap_size; i++){
-    for (int j = 0; j < 8; j++){
-      bit = bitmap[i] >> j;
-      if (bit & 1UL) continue;
+    for (int i = 0; i < img->sb.bitmap_size; i++){
+        for (int j = 0; j < 8; j++){
+            if( i == 0 && j == 0) continue;
+            bit = bitmap[i] >> j;
+            if (bit & 1UL) continue;
 
-      *block_nr = i * 8 + j;
-      edfs_block_t block_offset = img->sb.bitmap_start + *block_nr / 8;
-      char new_byte = 0;
+            *block_nr = i * 8 + j;
+            edfs_block_t block_offset = img->sb.bitmap_start + *block_nr / 8;
+            char new_byte = 0;
 
-      pread(img->fd, &new_byte, 1, block_offset);
-      new_byte += 1 << j;
-      pwrite(img->fd, &new_byte, 1, block_offset);
-      return true;
+            pread(img->fd, &new_byte, 1, block_offset);
+            new_byte += 1 << j;
+            pwrite(img->fd, &new_byte, 1, block_offset);
+            return true;
+        }
     }
-  }
-  
-  return false;
+
+    return false;
 }
 
 
@@ -57,7 +58,9 @@ deallocate_block(edfs_image_t *img, edfs_block_t block_nr)
     pread(img->fd, bitmap, img->sb.bitmap_size, img->sb.bitmap_start);
     int byte_index = block_nr / 8;
     int bit_index = block_nr % 8;
-    bitmap[byte_index] &= ~(1 << bit_index);
+
+    int bit_mask = ~(1 << bit_index); // only ones and one zero at bit_index
+    bitmap[byte_index] &= bit_mask;
     pwrite(img->fd, bitmap, img->sb.bitmap_size, img->sb.bitmap_start);
     return true;
 }
@@ -240,11 +243,6 @@ static int edfuse_readdir(const char *path, void *buf, fuse_fill_dir_t filler,
     filler(buf, ".", NULL, 0);
     filler(buf, "..", NULL, 0);
 
-    /* TODO: traverse all valid directory entries of @inode and call
-     * the filler function (as done above) for each entry. The second
-     * argument of the filler function is the filename you want to add.
-     */
-
     const int DIR_SIZE = edfs_get_n_dir_entries_per_block(&img->sb);
 
     for (int i = 0; i < EDFS_INODE_N_BLOCKS; i++) {
@@ -372,13 +370,6 @@ static int edfuse_rmdir(const char *path) {
         return 0;
     }
 
-    /* TODO: implement
-     *
-     * See also Section 4.3 of the Appendices document.
-     *
-     * Validate @path exists and is a directory; remove directory entry
-     * from parent directory; release allocated blocks; release inode.
-     */
     return -ENOENT;
 }
 
@@ -575,7 +566,6 @@ static int edfuse_read(const char *path, char *buf, size_t size, off_t offset,
                 }
                 current_offset += block_size;
             }
-            // now copy the read data to the buffer
         }
     }
     return bytes_read;
