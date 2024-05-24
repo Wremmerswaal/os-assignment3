@@ -303,12 +303,17 @@ static int edfuse_mkdir(const char *path, mode_t mode) {
     off_t offset;
 
     for (int i = 0; i < EDFS_INODE_N_BLOCKS; i++){
+        if (parent_inode.inode.blocks[i] == 0) {
+            if (!allocate_block(img, &parent_inode.inode.blocks[i])) return -ENOSPC;
+            edfs_write_inode(img, &parent_inode);
+        }
         offset = edfs_get_block_offset(&img->sb, parent_inode.inode.blocks[i]);
         pread(img->fd, dir, img->sb.block_size, offset);
         for (int j = 0; j < DIR_SIZE; j++){
             if (dir[j].inumber != 0) continue;
 
             err = edfs_new_inode(img, &inode, EDFS_INODE_TYPE_DIRECTORY);
+            printf("err is %d", err);
             if (err) return err;
             strncpy(dir_entry.filename, dirname, strlen(dirname) + 1);
             dir_entry.inumber = inode.inumber;
@@ -321,7 +326,6 @@ static int edfuse_mkdir(const char *path, mode_t mode) {
                 new_blocks[k] = 0;
             }
             memcpy(inode.inode.blocks, new_blocks, EDFS_INODE_N_BLOCKS * sizeof(edfs_block_t));
-            // TODOR: write inode geeft -ENOENT als inode table vol zit
             edfs_write_inode(img, &inode);
             return 0;
         }
