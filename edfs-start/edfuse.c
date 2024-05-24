@@ -265,6 +265,17 @@ static int edfuse_readdir(const char *path, void *buf, fuse_fill_dir_t filler,
     return 0;
 }
 
+static int check_filename(const char *filename) {
+    // filenames are restricted to 59 bytes (excluding null-terminator) and may only contain: A-Z,
+    // a-z, 0-9, spaces (“ ”) and dots (“.”).
+    if (strlen(filename) >= EDFS_FILENAME_SIZE) return -ENAMETOOLONG;
+    for (int i = 0; i < strlen(filename); i++) {
+        if (filename[i] == ' ' || filename[i] == '.' || (filename[i] >= 'A' && filename[i] <= 'Z') || (filename[i] >= 'a' && filename[i] <= 'z') || (filename[i] >= '0' && filename[i] <= '9')) continue;
+        return -EINVAL;
+    }
+    return 0;
+}
+
 static int edfuse_mkdir(const char *path, mode_t mode) {
     edfs_image_t *img = get_edfs_image();
     char *dirname = edfs_get_basename(path);
@@ -277,27 +288,28 @@ static int edfuse_mkdir(const char *path, mode_t mode) {
 
     if (!edfs_disk_inode_is_directory(&parent_inode.inode)) return -ENOTDIR;
 
+    int filename_check = check_filename(dirname);
+    if (filename_check) return filename_check;
+
+
     edfs_inode_t inode = {
         0,
     };
-    err = edfs_new_inode(img, &inode, EDFS_INODE_TYPE_DIRECTORY);
-    if (err) return err;
     
     
     const int DIR_SIZE = edfs_get_n_dir_entries_per_block(&img->sb);
     edfs_dir_entry_t dir[DIR_SIZE];
     edfs_dir_entry_t dir_entry;
     off_t offset;
-    // bool found = false;
 
     for (int i = 0; i < EDFS_INODE_N_BLOCKS; i++){
-        // if (found) continue;
-        printf("block: %d", i);
         offset = edfs_get_block_offset(&img->sb, parent_inode.inode.blocks[i]);
         pread(img->fd, dir, img->sb.block_size, offset);
         for (int j = 0; j < DIR_SIZE; j++){
             if (dir[j].inumber != 0) continue;
-            // found = true;
+
+            err = edfs_new_inode(img, &inode, EDFS_INODE_TYPE_DIRECTORY);
+            if (err) return err;
             strncpy(dir_entry.filename, dirname, strlen(dirname) + 1);
             dir_entry.inumber = inode.inumber;
             offset = edfs_get_block_offset(&img->sb, parent_inode.inode.blocks[i]) + sizeof(edfs_dir_entry_t) * j;
@@ -315,13 +327,6 @@ static int edfuse_mkdir(const char *path, mode_t mode) {
         }
     }
 
-    /* TODO: implement.
-     *
-     * See also Section 4.3 of the Appendices document.
-     *
-     * Create a new inode, register in parent directory, write inode to
-     * disk.
-     */
     return -ENOSPC;
 }
 
@@ -447,8 +452,9 @@ static int edfuse_create(const char *path, mode_t mode,
      * write inode to disk.
      */
   
-  // filenames are restricted to 59 bytes (excluding null-terminator) and may only contain: A-Z,
-  // a-z, 0-9, spaces (“ ”) and dots (“.”).
+    int filename_check = check_filename(path);
+    if (filename_check) return filename_check;
+    
     return -ENOSYS;
 }
 
@@ -805,30 +811,32 @@ static struct fuse_operations edfs_oper = {
 };
 
 int main(int argc, char *argv[]) {
-    /* Count number of arguments without hyphens; excluding execname */
-    int count = 0;
-    for (int i = 1; i < argc; ++i)
-        if (argv[i][0] != '-') count++;
+    struct fuse_args args = FUSE_ARGS_INIT(argc, argv);
+    struct options opts = {0};
 
-    if (count != 2) {
-        fprintf(stderr, "error: file and mountpoint arguments required.\n");
-        return -1;
+    // Parse command-line options
+    if (fuse_opt_parse(&args, &opts, option_spec, option_process) == -1) {
+        fprintf(stderr, "Error parsing options\n");
+        return 1;
     }
 
-    /* Extract filename argument; we expect this to be the
-     * penultimate argument.
-     */
-    /* FIXME: can't this be better handled using some FUSE API? */
-    const char *filename = argv[argc - 2];
-    argv[argc - 2] = argv[argc - 1];
-    argv[argc - 1] = NULL;
-    argc--;
+    if (!opts.filename || !opts.mountpoint) {
+        fprintf(stderr, "error: file and mountpoint arguments required.\n");
+        return 1;
+    }
 
-    /* Try to open the file system */
-    edfs_image_t *img = edfs_image_open(filename, true);
-    if (!img) return -1;
+    // Adjust arguments for FUSE
+    argv[1] = opts.mountpoint;
+    argc = args.argc;
 
-    /* Start fuse main loop */
+    // Try to open the file system
+    edfs_image_t *img = edfs_image_open(opts.filename, true);
+    if (!img) {
+        fprintf(stderr, "Failed to open filesystem image\n");
+        return 1;
+    }
+
+    // Start fuse main loop
     int ret = fuse_main(argc, argv, &edfs_oper, img);
     edfs_image_close(img);
 
