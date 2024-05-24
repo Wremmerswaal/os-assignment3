@@ -811,32 +811,30 @@ static struct fuse_operations edfs_oper = {
 };
 
 int main(int argc, char *argv[]) {
-    struct fuse_args args = FUSE_ARGS_INIT(argc, argv);
-    struct options opts = {0};
+    /* Count number of arguments without hyphens; excluding execname */
+    int count = 0;
+    for (int i = 1; i < argc; ++i)
+        if (argv[i][0] != '-') count++;
 
-    // Parse command-line options
-    if (fuse_opt_parse(&args, &opts, option_spec, option_process) == -1) {
-        fprintf(stderr, "Error parsing options\n");
-        return 1;
-    }
-
-    if (!opts.filename || !opts.mountpoint) {
+    if (count != 2) {
         fprintf(stderr, "error: file and mountpoint arguments required.\n");
-        return 1;
+        return -1;
     }
 
-    // Adjust arguments for FUSE
-    argv[1] = opts.mountpoint;
-    argc = args.argc;
+    /* Extract filename argument; we expect this to be the
+     * penultimate argument.
+     */
+    /* FIXME: can't this be better handled using some FUSE API? */
+    const char *filename = argv[argc - 2];
+    argv[argc - 2] = argv[argc - 1];
+    argv[argc - 1] = NULL;
+    argc--;
 
-    // Try to open the file system
-    edfs_image_t *img = edfs_image_open(opts.filename, true);
-    if (!img) {
-        fprintf(stderr, "Failed to open filesystem image\n");
-        return 1;
-    }
+    /* Try to open the file system */
+    edfs_image_t *img = edfs_image_open(filename, true);
+    if (!img) return -1;
 
-    // Start fuse main loop
+    /* Start fuse main loop */
     int ret = fuse_main(argc, argv, &edfs_oper, img);
     edfs_image_close(img);
 
