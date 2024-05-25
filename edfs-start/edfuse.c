@@ -496,6 +496,31 @@ static int edfuse_unlink(const char *path) {
     return -ENOSYS;
 }
 
+static int read_or_write_direct(bool read, size_t start_offset, size_t offset, size_t size, char *buf, edfs_image_t *img, edfs_inode_t inode, int &bytes_processed) {
+    size_t current_offset = start_offset;
+    size_t bytes_to_process = size;
+    
+    for (int i = 0; i < EDFS_INODE_N_BLOCKS; i++) {
+        if (bytes_to_process <= 0) break;
+        if (inode.inode.blocks[i] == 0) break;
+        off_t block_offset = edfs_get_block_offset(&img->sb, inode.inode.blocks[i]);
+
+        if (current_offset + block_size > offset) {
+            size_t this_block_offset = 0;
+            if (current_offset < offset) this_block_offset = offset - current_offset;
+            size_t this_block_size = block_size - this_block_offset;
+            if (this_block_size > bytes_to_process) this_block_size = bytes_to_process;
+
+            pread(img->fd, buf + bytes_processed, this_block_size, block_offset + this_block_offset);
+            bytes_processed += this_block_size;
+            bytes_to_process -= this_block_size;
+        }
+        current_offset += block_size;
+    }
+    return 0;
+}
+
+
 static int edfuse_read(const char *path, char *buf, size_t size, off_t offset,
                        struct fuse_file_info *fi) {
     edfs_image_t *img = get_edfs_image();
@@ -518,23 +543,7 @@ static int edfuse_read(const char *path, char *buf, size_t size, off_t offset,
 
     if (!edfs_disk_inode_has_indirect(&inode.inode)) {
         // direct blocks!
-        for (int i = 0; i < EDFS_INODE_N_BLOCKS; i++) {
-            if (inode.inode.blocks[i] == 0) break;
-            if (bytes_to_read <= 0) break;
-            off_t block_offset = edfs_get_block_offset(&img->sb, inode.inode.blocks[i]);
-
-            if (current_offset + block_size > offset) {
-                size_t read_offset = 0;
-                if (current_offset < offset) read_offset = offset - current_offset;
-                size_t read_size = block_size - read_offset;
-                if (read_size > bytes_to_read) read_size = bytes_to_read;
-
-                pread(img->fd, buf + bytes_read, read_size, block_offset + read_offset);
-                bytes_read += read_size;
-                bytes_to_read -= read_size;
-            }
-            current_offset += block_size;
-        }
+        read_or_write_direct(true, 0, offset, bytes_to_read, buf, img, inode, bytes_read);
     } else {
         // indirect blocks!
         for (int i = 0; i < EDFS_INODE_N_BLOCKS; i++) {
