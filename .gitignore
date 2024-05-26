@@ -1,6 +1,8 @@
+.gitignore
 *.pdf
 *.txt
 *.img
 *.o
 */*.o
 edfuse
+launch.json
